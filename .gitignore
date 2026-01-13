@@ -1,0 +1,12 @@
+# directories
+data/maps
+data/points
+data/llm
+data/output
+
+env/
+venv/
+
+# files
+.env
+.venv

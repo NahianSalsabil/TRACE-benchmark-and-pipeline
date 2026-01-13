@@ -1,0 +1,11 @@
+numpy
+pyproj
+carla
+pytz
+pysolar
+pandas
+pvlib
+matplotlib
+google-genai
+requests
+lxml
