@@ -16,9 +16,7 @@ RUN apt-get install -y --no-install-recommends \
     xdg-user-dirs \
     x11-utils mesa-utils \
     libglvnd0 libgl1 libglx0 libegl1 \
-    libsdl2-2.0 xserver-xorg libvulkan1 \
-    nvidia-container-toolkit libnvidia-container-tools
-
+    libsdl2-2.0 xserver-xorg libvulkan1
 
 ENV NVIDIA_VISIBLE_DEVICES=all
 
