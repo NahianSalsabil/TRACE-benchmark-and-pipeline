@@ -11,3 +11,5 @@ venv/
 # files
 .env
 .venv
+*.tar.gz
+*.zip
