@@ -2,8 +2,10 @@ FROM ubuntu:22.04
 
 USER root
 
+# update apt cache
 RUN apt-get update
 
+# installing OS dependencies
 RUN apt-get install -y \
     wget \
     tar \
@@ -14,6 +16,7 @@ RUN apt-get install -y \
     proj-bin \
     libproj-dev
 
+# add non-root user
 RUN groupadd --gid 1000 carla \
     && useradd --uid 1000 --gid carla --shell /bin/bash --create-home carla
 
