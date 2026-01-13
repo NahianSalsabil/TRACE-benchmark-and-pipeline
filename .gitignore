@@ -3,6 +3,7 @@ data/maps
 data/points
 data/llm
 data/output
+data/simulations
 
 env/
 venv/
