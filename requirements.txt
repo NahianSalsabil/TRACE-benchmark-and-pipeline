@@ -6,6 +6,6 @@ pysolar
 pandas
 pvlib
 matplotlib
-google-genai
+google-generativeai
 requests
 lxml
