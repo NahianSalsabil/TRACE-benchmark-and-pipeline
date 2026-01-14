@@ -1,13 +1,12 @@
-#!/bin/bash
-docker run -it --rm \
-    -u root \
+docker run -it \
+    --privileged \
+    --rm \
     --gpus all \
     --net=host \
-    --ipc=host \
-    -e QT_X11_NO_MITSHM=1 \
     -e DISPLAY=$DISPLAY \
-    -e NVIDIA_VISIBLE_DEVICES=all \
-    -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics,display \
-    -e LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/lib/i386-linux-gnu:/usr/local/nvidia/lib:/usr/local/nvidia/lib64 \
-    -v /tmp/.X11-unix:/tmp/.X11-unix \
-    carlatest:latest
+    -e NVIDIA_DRIVER_CAPABILITIES=all \
+    -e VK_ICD_FILENAMES="/usr/share/vulkan/icd.d/nvidia_icd.json" \
+    -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+    -v /usr/share/vulkan/icd.d:/usr/share/vulkan/icd.d:ro \
+    -v /usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.570.172.08:/usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.570.172.08:ro \
+    dockertest:latest 

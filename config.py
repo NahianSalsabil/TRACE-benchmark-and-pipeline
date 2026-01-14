@@ -7,6 +7,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # directories
 REPORTS_DIR = "data/crashes/reports"
 SUMMARY_DIR = "data/crashes/summary"
+MODIFIED_SUMMARY_DIR = "data/crashes/modified_summary"
 
 # maps
 MAPS_OSM_DIR            = "data/maps/osm"
