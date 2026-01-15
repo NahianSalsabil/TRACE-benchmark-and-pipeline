@@ -7,6 +7,11 @@ RUN chown -R carla:carla /home/carla
 
 COPY --chown=carla:carla . /home/carla/app
 
+RUN mv /home/carla/app/start.sh /home/carla/ \
+    && mv /home/carla/app/scripts/* /home/carla/PythonAPI/util/
+
+RUN ln -s /home/carla/PythonAPI/carla/agents /home/carla/PythonAPI/util/agents
+
 RUN apt-get update && apt-get install -y \
     wget \
     xdg-user-dirs \
@@ -27,7 +32,9 @@ RUN wget https://bootstrap.pypa.io/pip/3.8/get-pip.py \
     && python3.8 get-pip.py \
     && rm get-pip.py 
 
-ENV PATH="$PATH:/home/carla/.local/bin"
+ENV PATH="$PATH:/home/carla/.local/bin:/home/carla/PythonAPI/carla"
+
+ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/home/carla/app/lib"
 
 WORKDIR /home/carla
 
@@ -35,6 +42,6 @@ RUN pip3.8 install -r app/requirements.txt
 
 USER carla
 
-# Define the entrypoint (starts CARLA automatically)
+# Define the entrypoint
 CMD ["/bin/bash"]
 

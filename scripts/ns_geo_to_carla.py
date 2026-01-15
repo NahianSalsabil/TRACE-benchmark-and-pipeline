@@ -3,6 +3,10 @@ from typing import Tuple
 import os
 import xml.etree.ElementTree as ET
 from pyproj import CRS, Transformer
+from settings import REAL_POINTS_DIR
+from settings import CONVERTED_POINTS_DIR
+from settings import CLIPPED_MERGED_XODR_DIR
+
 
 class ProjectionMapper:
 
@@ -50,19 +54,15 @@ def get_proj_string_from_xodr(xodr_path):
 
 if __name__ == '__main__':
 
-    real_points_dir = "points/real_points"
-    converted_points_dir = "points/converted_points"
-    xodr_dir = "ns-maps/xodr"
+    os.makedirs(CONVERTED_POINTS_DIR, exist_ok=True)
 
-    os.makedirs(converted_points_dir, exist_ok=True)
-
-    for filename in os.listdir(real_points_dir):
+    for filename in os.listdir(REAL_POINTS_DIR):
         if filename.endswith(".txt"):
             try:
                 crash_id = filename.split('_')[-1].replace('.txt', '')
-                real_points_path = os.path.join(real_points_dir, filename)
+                real_points_path = os.path.join(REAL_POINTS_DIR, filename)
                 
-                xodr_path = os.path.join(xodr_dir, f"map_{crash_id}.xodr")
+                xodr_path = os.path.join(CLIPPED_MERGED_XODR_DIR, f"map_{crash_id}.xodr")
                 
                 if not os.path.exists(xodr_path):
                     print(f"SKIPPING {filename}: No matching .xodr map found for ID {crash_id}")
@@ -76,7 +76,7 @@ if __name__ == '__main__':
 
                 # 5. Process the points
                 converted_filename = filename.replace('real_points', 'converted_points')
-                converted_path = os.path.join(converted_points_dir, converted_filename)
+                converted_path = os.path.join(CONVERTED_POINTS_DIR, converted_filename)
 
                 print(f"Processing {filename} using map {os.path.basename(xodr_path)}...")
                 

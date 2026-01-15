@@ -7,7 +7,7 @@ import json
 from ns_check_points import check_and_get_direction
 import ns_GT_junction
 import ns_validation_manager
-sys.path.append("/home/nahian/Research/Carla/PythonAPI/carla")
+sys.path.append("/home/carla/PythonAPI/carla")
 from agents.navigation.basic_agent import BasicAgent
 from agents.navigation.local_planner import RoadOption
 
@@ -160,7 +160,7 @@ def convert_points_to_global_plan(point_list):
         plan.append((fake_wp, RoadOption.LANEFOLLOW))
     return plan
 
-def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, simulation_path):
+def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, trajectory_path, simulation_path):
 
 
     client = carla.Client('localhost', 2000)
@@ -219,14 +219,42 @@ def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, simulation_path):
 
     # --- Spawn the Vehicles ---
     try:
-        vehicle1 = world.try_spawn_actor(vehicle_bp1, veh1_spawn_transform)
-        vehicle2 = world.try_spawn_actor(vehicle_bp2, veh2_spawn_transform)
+        SpawnActor = carla.command.SpawnActor
+        SetPhysics = carla.command.SetSimulatePhysics
+        FutureActor = carla.command.FutureActor
 
-        if not vehicle1:
-            print("Failed to spawn 1st vehicle. Check coordinates/occupancy.")
+        batch = []
+        
+        batch.append(SpawnActor(vehicle_bp1, veh1_spawn_transform)
+                    .then(SetPhysics(FutureActor, True)))
 
-        if not vehicle2:
-            print("Failed to spawn 2nd vehicle. Check coordinates/occupancy.")
+        batch.append(SpawnActor(vehicle_bp2, veh2_spawn_transform)
+                    .then(SetPhysics(FutureActor, True)))
+
+        responses = client.apply_batch_sync(batch, True)
+
+        vehicle1 = None
+        vehicle2 = None
+        
+        if responses[0].error:
+            print(f"Failed to spawn 1st vehicle: {responses[0].error}")
+        else:
+            vehicle1 = world.get_actor(responses[0].actor_id)
+
+        if responses[1].error:
+            print(f"Failed to spawn 2nd vehicle: {responses[1].error}")
+        else:
+            vehicle2 = world.get_actor(responses[1].actor_id)
+
+        # vehicle1 = world.try_spawn_actor(vehicle_bp1, veh1_spawn_transform)
+        # vehicle2 = world.try_spawn_actor(vehicle_bp2, veh2_spawn_transform)
+        
+
+        # if not vehicle1:
+        #     print("Failed to spawn 1st vehicle. Check coordinates/occupancy.")
+
+        # if not vehicle2:
+        #     print("Failed to spawn 2nd vehicle. Check coordinates/occupancy.")
         
         if vehicle1 and vehicle2:
             print(f"Successfully spawned two vehicles.")
@@ -236,6 +264,15 @@ def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, simulation_path):
             print("veh 1 loc: ", location1)
             print("veh 2 loc: ", location2)
             print("crash loc: ", crash_location)
+
+            for v in [vehicle1, vehicle2]:
+                v.apply_control(carla.VehicleControl(hand_brake=True))
+            
+            for _ in range(20): 
+                world.tick()
+
+            for v in [vehicle1, vehicle2]:
+                v.apply_control(carla.VehicleControl(hand_brake=False))
 
             validator = ns_validation_manager.ValidationManager(
                 crash_location=(crash_x, crash_y)   
@@ -254,8 +291,8 @@ def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, simulation_path):
                 print("\n!!! CRASH SENSOR TRIGGERED !!!")
                 crash_detected = True
                 validator.register_crash(vehicle1, vehicle2, veh1_route_points, veh2_route_points, 
-                                         veh1_direction, veh2_direction,
-                                         veh1_impact_point, veh2_impact_point)
+                                            veh1_direction, veh2_direction,
+                                            veh1_impact_point, veh2_impact_point)
 
             collision_bp = blueprint_library.find('sensor.other.collision')
             col_sensor1 = world.spawn_actor(collision_bp, carla.Transform(), attach_to=vehicle1)
@@ -266,15 +303,15 @@ def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, simulation_path):
             v1_P = (veh1_x, veh1_y)
             v2_P = (veh2_x, veh2_y)
             veh1_speed, veh2_speed = ns_GT_junction.calculate_synchronized_speeds(xodrPath, crash_P, 
-                                                                         v1_P, veh1_junction_id, 
-                                                                         veh1_junction_road_id, 
-                                                                         veh1_road_id, veh1_speed, v2_P,
-                                                                         veh2_junction_id,
-                                                                         veh2_junction_road_id,
-                                                                         veh2_road_id, veh2_speed)
-            agent1 = BlindAgent(vehicle1, target_speed = 10)
+                                                                            v1_P, veh1_junction_id, 
+                                                                            veh1_junction_road_id, 
+                                                                            veh1_road_id, veh1_speed, v2_P,
+                                                                            veh2_junction_id,
+                                                                            veh2_junction_road_id,
+                                                                            veh2_road_id, veh2_speed)
+            agent1 = BlindAgent(vehicle1, target_speed = veh1_speed)
 
-            veh1_route_points = ns_GT_junction.route_generator(xodrPath, crash_P, veh1_x, veh1_y, 
+            veh1_route_points = ns_GT_junction.route_generator(xodrPath, trajectory_path, crash_P, veh1_x, veh1_y, 
                                                         veh1_junction_id, veh1_junction_road_id, veh1_road_id,
                                                         fileopen = "w")
             if veh1_route_points:
@@ -282,9 +319,9 @@ def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, simulation_path):
                 agent1.set_global_plan(veh1_route)
             print("veh1 route found")
             
-            agent2 = BlindAgent(vehicle2, target_speed = 5)
+            agent2 = BlindAgent(vehicle2, target_speed = veh2_speed)
 
-            veh2_route_points = ns_GT_junction.route_generator(xodrPath, crash_P, veh2_x, veh2_y, 
+            veh2_route_points = ns_GT_junction.route_generator(xodrPath, trajectory_path, crash_P, veh2_x, veh2_y, 
                                                         veh2_junction_id, veh2_junction_road_id, veh2_road_id,
                                                         fileopen = "a")
             if veh2_route_points:

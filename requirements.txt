@@ -9,3 +9,5 @@ matplotlib
 google-generativeai
 requests
 lxml
+shapely
+networkx

@@ -540,6 +540,61 @@ class OpenDRIVEChecker:
 
         return trajectory
 
+def clean_trajectory(trajectory, min_dist=5, max_angle_deg=90):
+    """
+    Removes points that cause the path to backtrack or zigzag.
+    
+    Args:
+        trajectory: List of (x,y) or (x,y,z) tuples.
+        min_dist: Minimum distance required between points (removes overlaps).
+        max_angle_deg: Maximum allowed turn angle. If a point requires a 
+                    turn sharper than this (e.g., >120 deg), it's likely a backtrack.
+    """
+    if not trajectory or len(trajectory) < 2:
+        return trajectory
+
+    cleaned = [trajectory[0]]
+    
+    for i in range(1, len(trajectory)):
+        curr_p = trajectory[i]
+        prev_p = cleaned[-1]
+        
+        dist = math.sqrt((curr_p[0] - prev_p[0])**2 + (curr_p[1] - prev_p[1])**2)
+        
+        # If point is too close (overlap), skip it
+        if dist < min_dist:
+            continue
+
+        # 2. Angle/Backtrack Check
+        if len(cleaned) > 1:
+            prev_prev_p = cleaned[-2]
+            
+            # Vector 1: Prev_Prev -> Prev
+            v1 = (prev_p[0] - prev_prev_p[0], prev_p[1] - prev_prev_p[1])
+            # Vector 2: Prev -> Curr
+            v2 = (curr_p[0] - prev_p[0], curr_p[1] - prev_p[1])
+            
+            # Calculate angle between vectors
+            dot_prod = v1[0]*v2[0] + v1[1]*v2[1]
+            mag_v1 = math.sqrt(v1[0]**2 + v1[1]**2)
+            mag_v2 = math.sqrt(v2[0]**2 + v2[1]**2)
+            
+            if mag_v1 * mag_v2 > 0:
+                cos_angle = dot_prod / (mag_v1 * mag_v2)
+                # Clamp to avoid float errors
+                cos_angle = max(-1.0, min(1.0, cos_angle)) 
+                angle = math.degrees(math.acos(cos_angle))
+                
+                # If the turn is sharper than max_angle (e.g., 180 is a U-turn), 
+                # this point is likely "behind" the previous one. Skip it.
+                if abs(angle) > max_angle_deg:
+                    continue
+
+        cleaned.append(curr_p)
+
+    return cleaned
+
+
 def calculate_synchronized_speeds(xodrPath, crash_P, 
                                     v1_P, v1_junction_id, v1_junction_road_id, v1_road_id, v1_speed,
                                     v2_P, v2_junction_id, v2_junction_road_id, v2_road_id, v2_speed):
@@ -562,10 +617,13 @@ def calculate_synchronized_speeds(xodrPath, crash_P,
 
     generator = OpenDRIVEChecker(xodr_content)
 
-    step_size = 0.5
+    step_size = 5
     
     traj_v1_measure = generator.get_trajectory(crash_P, v1_P, v1_junction_id, v1_junction_road_id, v1_road_id, v1_side, step_size, stop_at_crash_point=True)
     traj_v2_measure = generator.get_trajectory(crash_P, v2_P, v2_junction_id, v2_junction_road_id, v2_road_id, v2_side, step_size, stop_at_crash_point=True)
+
+    traj_v1_measure = clean_trajectory(traj_v1_measure)
+    traj_v2_measure = clean_trajectory(traj_v2_measure)
 
     if not traj_v1_measure or not traj_v2_measure:
         print("Error: Could not generate measurement trajectories.")
@@ -616,7 +674,7 @@ def calculate_synchronized_speeds(xodrPath, crash_P,
         print(f"Time to Collision: {ttc:.4f} seconds")
 
         v1_ms = dist_v1 / ttc
-        v1_mph_adjusted = v2_ms / 0.44704
+        v1_mph_adjusted = v1_ms / 0.44704
         
         v1_kmh = v1_ms * 3.6
         v2_kmh = v2_ms * 3.6
@@ -629,9 +687,8 @@ def calculate_synchronized_speeds(xodrPath, crash_P,
 
     return 0, 0
 
-def route_generator(xodrPath, crash_P, P_x, P_y, junction_id, junction_road_id, road_id, fileopen):
-    crash_number = xodrPath.split("/")[-1].split(".")[0].split("_")[-1]
-
+def route_generator(xodrPath, trajectory_path, crash_P, P_x, P_y, junction_id, junction_road_id, road_id, fileopen):
+    
     with open(xodrPath, 'r') as file:
         xodr_content = file.read()
 
@@ -644,12 +701,13 @@ def route_generator(xodrPath, crash_P, P_x, P_y, junction_id, junction_road_id, 
     P = (P_x, P_opendrive)
 
     points = generator.get_trajectory(crash_P, P, junction_id, junction_road_id, road_id, SIDE, step_size)
+    points = clean_trajectory(points)
     
     if points:
         print(f"Generated {len(points)} points for Road {road_id}, Side: {SIDE}")
         
         # Save
-        with open(f"points/trajectory/trajectory_{crash_number}.txt", fileopen) as f:
+        with open(trajectory_path, fileopen) as f:
             for p in points:
                 f.write(f"{p[0]},{p[1]}\n")
 

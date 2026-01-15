@@ -5,6 +5,8 @@ import argparse
 import re
 import os
 import glob
+from settings import CLIPPED_XODR_DIR
+from settings import CLIPPED_MERGED_XODR_DIR
 
 class OpenDRIVEModifier:
     """
@@ -226,33 +228,30 @@ class OpenDRIVEModifier:
 
 def reorganize_xodr():
 
-    xodr_dir = "ns-maps/mv_scaling_passed"
-    merged_xodr_dir = "ns-maps/clipped_merged_xodr"
+    os.makedirs(CLIPPED_MERGED_XODR_DIR, exist_ok=True)
 
-    os.makedirs(merged_xodr_dir, exist_ok=True)
-
-    if not os.path.isdir(xodr_dir):
+    if not os.path.isdir(CLIPPED_XODR_DIR):
         print(f"ERROR: Python cannot find the directory: {os.path.abspath(xodr_dir)}")
         print("Check your relative path or use an absolute path.")
         sys.exit(1)
 
     LENGTH_TOLERANCE = 0.01
 
-    files_to_process = glob.glob(os.path.join(xodr_dir, '*.xodr'))
+    files_to_process = glob.glob(os.path.join(CLIPPED_XODR_DIR, '*.xodr'))
 
     if not files_to_process:
-        print(f"WARNING: Directory found, but NO .xodr files inside: {xodr_dir}")
-        print(f"Looking for: {os.path.join(xodr_dir, '*.xodr')}")
+        print(f"WARNING: Directory found, but NO .xodr files inside: {CLIPPED_XODR_DIR}")
+        print(f"Looking for: {os.path.join(CLIPPED_XODR_DIR, '*.xodr')}")
     else:
         print(f"Found {len(files_to_process)} xodr files.")
     
     total_files_processed = 0
 
-    for filename in os.listdir(xodr_dir):
+    for filename in os.listdir(CLIPPED_XODR_DIR):
         if filename.endswith(".xodr"):
             
-            input_filepath = os.path.join(xodr_dir, filename)
-            output_filepath = os.path.join(merged_xodr_dir, filename)
+            input_filepath = os.path.join(CLIPPED_XODR_DIR, filename)
+            output_filepath = os.path.join(CLIPPED_MERGED_XODR_DIR, filename)
             
             print(f"\n--- Processing File: {filename} ---")
         
@@ -315,7 +314,7 @@ def reorganize_xodr():
 
     print(f"\n=============================================")
     print(f"Files Processed: {total_files_processed}")
-    print(f"Output Directory: {merged_xodr_dir}")
+    print(f"Output Directory: {CLIPPED_MERGED_XODR_DIR}")
     print(f"=============================================")
 
 

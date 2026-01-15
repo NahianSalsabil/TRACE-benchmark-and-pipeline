@@ -2,6 +2,10 @@ import xml.etree.ElementTree as ET
 import math
 import os
 import shutil
+from settings import MAPS_OSM_DIR
+from settings import SUMMARY_DIR
+from settings import ELEVANTION_PASSED_DIR
+
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     """
@@ -85,12 +89,8 @@ def is_safe_elevation(osm_file_path, crash_lat, crash_lon, safety_threshold_mete
 def check_elevation():
     
     SEARCH_THRESHOLD = 100.0 
-    
-    osm_dir = "ns-maps/osm" 
-    summary_dir = "crashes/summary"
-    mv_elevation_passed = "ns-maps/mv_elevation_passed"
 
-    os.makedirs(mv_elevation_passed, exist_ok=True)
+    os.makedirs(ELEVANTION_PASSED_DIR, exist_ok=True)
 
     crash_lat = 0.0
     crash_lon = 0.0
@@ -99,13 +99,13 @@ def check_elevation():
     failed_elevation = 0
     copied_count = 0
 
-    for filename in os.listdir(osm_dir):
+    for filename in os.listdir(MAPS_OSM_DIR):
         if filename.endswith(".osm"):
             try:
-                osm_path = os.path.join(osm_dir, filename)
+                osm_path = os.path.join(MAPS_OSM_DIR, filename)
 
                 crash_id = filename.split('_')[-1].replace('.osm', '')
-                summary_path = os.path.join(summary_dir, f"summary_{crash_id}.txt")
+                summary_path = os.path.join(SUMMARY_DIR, f"summary_{crash_id}.txt")
                 with open(summary_path, "r", encoding="utf-8") as file:
                     lines = file.readlines()
                 for line in lines:
@@ -119,7 +119,7 @@ def check_elevation():
                 
                 if is_safe:
                     print(f"✅ Elevation {filename}: Passed.")
-                    dest_path = os.path.join(mv_elevation_passed, filename)
+                    dest_path = os.path.join(ELEVANTION_PASSED_DIR, filename)
                     shutil.copy2(osm_path, dest_path)
                     copied_count += 1
 

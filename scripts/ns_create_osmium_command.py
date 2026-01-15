@@ -1,18 +1,19 @@
 import os
 
-osm_dir = "ns-maps/mv_elevation_passed"
-bbox_dir = "ns-maps/bbox"
+from settings import ELEVANTION_PASSED_DIR
+from settings import MAP_BBOX_DIR
 
-command_file = "ns-maps/command_osmium.txt"
+
+command_file = "data/maps/command_osmium.txt"
 
 
 with open(command_file, "w", encoding="UTF-8") as c_file:
     file_count = 0
-    for filename in os.listdir(osm_dir):
+    for filename in os.listdir(ELEVANTION_PASSED_DIR):
         try:
             print(f"Processing {filename}.")
             crash_id = filename.split('_')[1].split(".")[0]
-            with open(os.path.join(bbox_dir, f"bbox_{crash_id}.txt")) as file:
+            with open(os.path.join(MAP_BBOX_DIR, f"bbox_{crash_id}.txt")) as file:
                     max_lat = file.readline().split(':')[1].strip()
                     max_lon = file.readline().split(':')[1].strip()
                     min_lat = file.readline().split(':')[1].strip()

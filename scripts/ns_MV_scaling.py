@@ -5,6 +5,12 @@ from ns_geo_to_carla import ProjectionMapper, get_proj_string_from_xodr
 from ns_check_points import check_and_get_direction
 import os
 import shutil
+from settings import CLIPPED_XODR_DIR
+from settings import SUMMARY_DIR
+from settings import SCALING_PASSED_DIR
+from settings import REAL_POINTS_DIR
+from settings import CONVERTED_POINTS_DIR
+
 
 def verify_map_scale(xodr_path, real_path, converted_path, center_lat, center_lon, actual_dist_meters):
     """
@@ -86,15 +92,11 @@ def verify_CP_on_road(converted_path, xodr_path):
 def check_alignment_and_on_road():
 
     ACTUAL_DISTANCE_METERS = 100
-    xodr_dir = 'ns-maps/clipped_xodr'
-    summary_dir = "crashes/summary"
-    mv_scaling_passed = "ns-maps/mv_scaling_passed"
-    real_points_dir = "points/real_points"
-    converted_points_dir = "points/converted_points"
     
-    os.makedirs(mv_scaling_passed, exist_ok=True)
-    os.makedirs(real_points_dir, exist_ok=True)
-    os.makedirs(converted_points_dir, exist_ok=True)
+    
+    os.makedirs(SCALING_PASSED_DIR, exist_ok=True)
+    os.makedirs(REAL_POINTS_DIR, exist_ok=True)
+    os.makedirs(CONVERTED_POINTS_DIR, exist_ok=True)
 
     crash_lat = 0.0
     crash_lon = 0.0
@@ -104,14 +106,14 @@ def check_alignment_and_on_road():
     failed_CP_off_road = 0
     copied_count = 0
     
-    for filename in os.listdir(xodr_dir):
+    for filename in os.listdir(CLIPPED_XODR_DIR):
         if filename.endswith(".xodr"):
             try:
-                xodr_path = os.path.join(xodr_dir, filename)
+                xodr_path = os.path.join(CLIPPED_XODR_DIR, filename)
 
                 crash_id = filename.split('_')[-1].replace('.xodr', '')
 
-                summary_path = os.path.join(summary_dir, f"summary_{crash_id}.txt")
+                summary_path = os.path.join(SUMMARY_DIR, f"summary_{crash_id}.txt")
                 with open(summary_path, "r", encoding="utf-8") as file:
                     lines = file.readlines()
                 for line in lines:
@@ -121,8 +123,8 @@ def check_alignment_and_on_road():
                         crash_lon = float(line.split(":")[-1].strip())
 
 
-                realpoints_path = os.path.join(real_points_dir, f"realpoints_{crash_id}.txt")
-                convertedpoints_path = os.path.join(converted_points_dir, f"convertedpoints_{crash_id}.txt")
+                realpoints_path = os.path.join(REAL_POINTS_DIR, f"realpoints_{crash_id}.txt")
+                convertedpoints_path = os.path.join(CONVERTED_POINTS_DIR, f"convertedpoints_{crash_id}.txt")
                 
                 error, reason = verify_map_scale(xodr_path, realpoints_path, convertedpoints_path, crash_lat, crash_lon, ACTUAL_DISTANCE_METERS)
 
@@ -132,7 +134,7 @@ def check_alignment_and_on_road():
 
                     if on_road:
                         print(f"✅ Crash Point on the road. {filename}: Passed")
-                        dest_path = os.path.join(mv_scaling_passed, filename)
+                        dest_path = os.path.join(SCALING_PASSED_DIR, filename)
                         shutil.copy2(xodr_path, dest_path)
                         copied_count += 1
                     else:

@@ -3,6 +3,10 @@ from pyproj import CRS, Transformer
 import xml.etree.ElementTree as ET
 import argparse
 import os
+from settings import CLIPPED_OSM_DIR
+from settings import EDITED_OSM_DIR
+from settings import SUMMARY_DIR
+from settings import CLIPPED_HEADERS_DIR
 
 
 regionSpecificScaleFactor = 1.0
@@ -63,29 +67,25 @@ def modify_file(osm_input_path, summary_path, osm_edited_path, header_path):
 
 if __name__ == "__main__":
 
-    osm_input_dir = "ns-maps/clipped_osm"
-    osm_edited_dir = "ns-maps/clipped_edited_osm"
-    summary_dir = "crashes/summary"
-    header_file_dir = "ns-maps/clipped_headers"
 
-    os.makedirs(osm_edited_dir, exist_ok=True)
-    os.makedirs(header_file_dir, exist_ok=True)
+    os.makedirs(EDITED_OSM_DIR, exist_ok=True)
+    os.makedirs(CLIPPED_HEADERS_DIR, exist_ok=True)
     edited_count = 0
 
-    for filename in os.listdir(osm_input_dir):
+    for filename in os.listdir(CLIPPED_OSM_DIR):
         if filename.endswith(".osm"):
             try:
-                osm_input_path = os.path.join(osm_input_dir, filename)
+                osm_input_path = os.path.join(CLIPPED_OSM_DIR, filename)
 
                 summary_file = filename.replace("map", "summary")
                 summary_file = summary_file.replace("osm", "txt")
-                summary_path = os.path.join(summary_dir, summary_file)
+                summary_path = os.path.join(SUMMARY_DIR, summary_file)
 
                 osm_edited_file = filename.replace(".osm", "_edited.osm")
-                osm_edited_path = os.path.join(osm_edited_dir, osm_edited_file)
+                osm_edited_path = os.path.join(EDITED_OSM_DIR, osm_edited_file)
 
                 header_file = filename.replace(".osm", "_header.txt")
-                header_path = os.path.join(header_file_dir, header_file)
+                header_path = os.path.join(CLIPPED_HEADERS_DIR, header_file)
             
                 modify_file(osm_input_path, summary_path, osm_edited_path, header_path)
                 edited_count += 1

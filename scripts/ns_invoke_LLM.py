@@ -5,10 +5,16 @@ import re
 from ns_check_points import check_and_get_direction
 import json
 import time
+from settings import SEGMENT_BBOX_DIR
+from settings import MODIFIED_SUMMARY_DIR
+from settings import CLIPPED_MERGED_XODR_DIR
+from settings import PROMPTS_DIR
+from settings import REASONINGS_DIR
+from settings import SCENE_POINTS_DIR
 
 MAX_RETRIES = 5
 client = genai.Client()
-model_name = "gemini-2.5-flash"
+model_name = "gemini-3-flash-preview"
 
 def get_file_content(filepath):
     with open(filepath, 'r') as f:
@@ -201,40 +207,34 @@ def process_crash_with_retries(summary_text, bbox_text, xodr_path):
 
 def main():
 
-    bbox_dir = "points/correct_bbox"
-    summary_dir = "crashes/modified_summary"
-    xodr_dir = "ns-maps/clipped_merged_xodr"
-    prompt_dir = "prompts"
-    llm_output_dir = "LLM_output"
-    scene_points_dir = "points/scene_points"
+    os.makedirs(PROMPTS_DIR, exist_ok=True)
+    os.makedirs(REASONINGS_DIR, exist_ok=True)
+    os.makedirs(SCENE_POINTS_DIR, exist_ok=True)
 
-    os.makedirs(prompt_dir, exist_ok=True)
-    os.makedirs(llm_output_dir, exist_ok=True)
-
-    for filename in os.listdir(bbox_dir):
+    for filename in os.listdir(SEGMENT_BBOX_DIR):
         if filename.endswith(".txt"):
             print(f"LLM started {filename}")
             try:
-                bbox_path = os.path.join(bbox_dir, filename)
+                bbox_path = os.path.join(SEGMENT_BBOX_DIR, filename)
                 bbox_text = get_file_content(bbox_path)
 
                 crash_id = filename.split('_')[-1].replace('.txt','')
-                xodr_path = os.path.join(xodr_dir, f"map_{crash_id}.xodr")
-                summary_path = os.path.join(summary_dir, f"summary_{crash_id}.txt")
+                xodr_path = os.path.join(CLIPPED_MERGED_XODR_DIR, f"map_{crash_id}.xodr")
+                summary_path = os.path.join(MODIFIED_SUMMARY_DIR, f"summary_{crash_id}.txt")
                 summary_text = get_file_content(summary_path)
                 
                 initial_prompt = construct_prompt(summary_text, bbox_text)
 
-                with open(os.path.join(prompt_dir, f"prompt_{crash_id}.txt"), "w") as f:
+                with open(os.path.join(PROMPTS_DIR, f"prompt_{crash_id}.txt"), "w") as f:
                     f.write(initial_prompt)
 
                 attempt, final_text, final_json = process_crash_with_retries(summary_text, bbox_text, xodr_path)
                 
                 if final_json:
-                    with open(os.path.join(llm_output_dir, f"llmreasoning_{crash_id}"), "w") as f:
+                    with open(os.path.join(REASONINGS_DIR, f"llmreasoning_{crash_id}"), "w") as f:
                         f.write(final_text)
                     
-                    with open(os.path.join(scene_points_dir, f"scenepoints_{crash_id}.json"), "w") as f:
+                    with open(os.path.join(SCENE_POINTS_DIR, f"scenepoints_{crash_id}.json"), "w") as f:
                         json.dump(final_json, f, indent=4)
                     
                     print(f"   Success: {filename} in {attempt}.")

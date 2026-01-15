@@ -155,7 +155,7 @@ def convert_points_to_global_plan(point_list):
         plan.append((fake_wp, RoadOption.LANEFOLLOW))
     return plan
 
-def spawn_vehicle(xodrPath, pointsPath, reportPath, simulation_path):
+def spawn_vehicle(xodrPath, pointsPath, reportPath, trajectory_path, simulation_path):
 
     client = carla.Client('localhost', 2000)
     client.set_timeout(10.0)
@@ -258,7 +258,7 @@ def spawn_vehicle(xodrPath, pointsPath, reportPath, simulation_path):
                                                                          veh2_road_id, veh2_speed)
             agent1 = BlindAgent(vehicle1, target_speed = veh1_speed)
 
-            veh1_route_points = ns_GT_nonjunction.route_generator(xodrPath, crash_P, veh1_x, veh1_y, veh1_road_id,
+            veh1_route_points = ns_GT_nonjunction.route_generator(xodrPath, trajectory_path, crash_P, veh1_x, veh1_y, veh1_road_id,
                                                            fileopen = "w")
             if veh1_route:
                 veh1_route = convert_points_to_global_plan(veh1_route_points)
@@ -267,7 +267,7 @@ def spawn_vehicle(xodrPath, pointsPath, reportPath, simulation_path):
             
             agent2 = BlindAgent(vehicle2, target_speed = veh2_speed)
 
-            veh2_route_points = ns_GT_nonjunction.route_generator(xodrPath, crash_P, veh2_x, veh2_y, veh2_road_id,
+            veh2_route_points = ns_GT_nonjunction.route_generator(xodrPath, trajectory_path, crash_P, veh2_x, veh2_y, veh2_road_id,
                                                            fileopen = "a")
             if veh2_route:
                 veh2_route = convert_points_to_global_plan(veh2_route_points)
