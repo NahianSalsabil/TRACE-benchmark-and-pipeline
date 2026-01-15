@@ -13,3 +13,4 @@ venv/
 .venv
 *.tar.gz
 *.zip
+libnvidia-gpucomp.so.*
