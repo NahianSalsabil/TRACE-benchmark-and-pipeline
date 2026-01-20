@@ -1,0 +1,31 @@
+CRASH COVERAGE ANALYSIS
+=====================
+
+OVERALL SUMMARY
+Total Reports: 52
+
+Road Topology:
+		 Not an Intersection: 36
+		 T-Intersection: 8
+		 Four-way Intersection: 8
+		 Others: 0
+
+Type of Collision:
+		 Angle: 19
+		 Front-to-Front: 23
+		 Front-to-Rear: 3
+		 Sideswipe, Same Direction: 0
+		 Sideswipe, Opposite Direction: 2
+		 Rear-to-Side: 0
+		 Rear-to-Rear: 0
+		 Others: 5
+
+Vehicle Trajectory:
+		 Same Trafficway, Same Direction: 4
+		 Same Trafficway, Opposite Direction: 27
+		 Changing Trafficway, Vehicle Turning: 9
+		 Intersecting Paths: 7
+		 Others: 5
+
+==================================================
+
