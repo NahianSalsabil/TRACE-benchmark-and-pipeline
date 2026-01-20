@@ -10,3 +10,4 @@ docker run -it \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -v /usr/share/vulkan/icd.d:/usr/share/vulkan/icd.d:ro \
     carlatest:latest 
+    haha
