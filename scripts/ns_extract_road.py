@@ -10,6 +10,7 @@ from settings import CLIPPED_MERGED_XODR_DIR
 from settings import CONVERTED_POINTS_DIR
 from settings import MODIFIED_SUMMARY_DIR
 
+SEARCH_DIST_METER = 100.0
 
 def get_movement_info(line):
     """
@@ -24,17 +25,15 @@ def get_movement_info(line):
     return None
 
 def ExtractRoad():
-    search_distance_meters = 100.0 
-    
-
+     
     os.makedirs(SEGMENTS_DIR, exist_ok=True)
     os.makedirs(SEGMENT_BBOX_DIR, exist_ok=True)
     os.makedirs(ROUTES_DIR, exist_ok=True)
 
     for filename in os.listdir(CLIPPED_MERGED_XODR_DIR):
         intersection = True
-        if filename == "map_510026.xodr":
-            # try:
+        if filename.endswith(".xodr"):
+            try:
                 print(f"Processing {filename}")
                 xodr_path = os.path.join(CLIPPED_MERGED_XODR_DIR, filename)
                 with open(xodr_path, 'r') as file:
@@ -82,13 +81,12 @@ def ExtractRoad():
 
                     for vehicle_id, description in vehicles_to_process.items():
                         
-                        connected_road_segments = checker.check_point_on_road(crash_point_x, crash_point_y, search_distance_meters, description)
+                        connected_road_segments = checker.check_point_on_road(crash_point_x, crash_point_y, SEARCH_DIST_METER, description)
                         
                         results[vehicle_id] = connected_road_segments
 
                     with open (os.path.join(SEGMENTS_DIR, f"segments_{crash_id}.txt"), "w") as file:
                         for vehicle_id, all_connected_road_segments in results.items():
-                            print(all_connected_road_segments)
                             for road in all_connected_road_segments:
                                 segments = road['connected_road_segments']
                                 for segment in segments:
@@ -103,10 +101,11 @@ def ExtractRoad():
 
                     output_data = []
                     seen_junction_road_ids = set()
+                    seen_vehicle = set()
                     for vehicle_id, all_connected_road_segments in results.items():
                         for road in all_connected_road_segments:
                             current_id = road['junction_road_id']
-                            if current_id not in seen_junction_road_ids:
+                            if current_id not in seen_junction_road_ids and vehicle_id not in seen_vehicle:
                                 route_entry = {
                                     "vehicle id": vehicle_id,   # have to fix this line
                                     "junction_id": road['junction_id'],
@@ -115,18 +114,21 @@ def ExtractRoad():
                                 }
                                 output_data.append(route_entry)
                                 seen_junction_road_ids.add(current_id)
+                                seen_vehicle.add(vehicle_id)
+
                     with open (os.path.join(ROUTES_DIR, f"route_{crash_id}.json"), "w") as file:
                         json.dump(output_data, file, indent=4)
 
                     with open(os.path.join(SEGMENT_BBOX_DIR, f"bbox_{crash_id}.txt"), "w") as file:
                         seen_junction_road_ids = set()
+                        seen_vehicle = set()
                         output_data = []
 
                         for vehicle_id, all_connected_road_segments in results.items():
                             for road in all_connected_road_segments:
                                 current_id = road['junction_road_id']
 
-                                if current_id not in seen_junction_road_ids:
+                                if current_id not in seen_junction_road_ids and vehicle_id not in seen_vehicle:
                                     junction_bbox = [list(pt) for pt in road['junction_road_segment']]
                                     
                                     pred_road = road['connected_road_id']
@@ -150,6 +152,7 @@ def ExtractRoad():
                                     
                                     output_data.append(junction_entry)
                                     seen_junction_road_ids.add(current_id)
+                                    seen_vehicle.add(vehicle_id)
 
                         json_str = json.dumps(output_data, indent=4)
                         compact_json_str = re.sub(
@@ -164,7 +167,7 @@ def ExtractRoad():
 
                 else:
                     checker = RoadExtractionNonJunction(xodr_content)
-                    road_segments = checker.check_point_on_road(crash_point_x, crash_point_y, search_distance_meters)
+                    road_segments = checker.check_point_on_road(crash_point_x, crash_point_y, SEARCH_DIST_METER)
                 
                     with open (os.path.join(SEGMENTS_DIR, f"segments_{crash_id}.txt"), "w") as file:
                         segments = road_segments['road_segments']
@@ -211,8 +214,8 @@ def ExtractRoad():
                         
                     print("Everything written successfully.")
 
-            # except Exception as e:
-            #     print('\nAn error has occurred in conversion.', e)
+            except Exception as e:
+                print('\nAn error has occurred in conversion.', e)
 
 
 

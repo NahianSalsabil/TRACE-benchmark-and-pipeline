@@ -14,3 +14,4 @@ venv/
 *.tar.gz
 *.zip
 libnvidia-gpucomp.so.*
+run_docker.sh

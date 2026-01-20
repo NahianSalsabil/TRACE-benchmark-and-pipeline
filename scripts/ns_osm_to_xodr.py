@@ -4,6 +4,9 @@ import argparse
 import glob
 import os
 import sys
+from settings import EDITED_OSM_DIR
+from settings import CLIPPED_HEADERS_DIR
+from settings import CLIPPED_XODR_DIR
 
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
@@ -17,7 +20,6 @@ import carla
 
 
 def convert(args, osm_file, xodr_file, header_file):
-    print("in")
     # Read the .osm data
     with open(osm_file, mode="r", encoding="utf-8") as osmFile:
         osm_data = osmFile.read()
@@ -41,7 +43,7 @@ def convert(args, osm_file, xodr_file, header_file):
         "residential"
     ])
     settings.default_lane_width = args.lane_width
-    settings.generate_traffic_lights = args.traffic_lights
+    settings.generate_traffic_lights = True
     settings.all_junctions_with_traffic_lights = args.all_junctions_lights
     settings.center_map = args.center_map
 
@@ -68,32 +70,7 @@ def convert(args, osm_file, xodr_file, header_file):
 
 
 def main():
-    argparser = argparse.ArgumentParser(
-        description=__doc__)
-    argparser.add_argument(
-        '-id', '--input-dir',
-        metavar='osm_file_dir',
-    )
-    argparser.add_argument(
-        '-od', '--output-dir',
-        metavar='xodr_file_dir',
-    )
-    argparser.add_argument(
-        '-hd', '--header-dir',
-        metavar='header_file_dir',
-    )
-    argparser.add_argument(
-        '-i', '--input-path',
-        metavar='OSM_FILE_DIR',
-        help='set the input OSM file path')
-    argparser.add_argument(
-        '-o', '--output-path',
-        metavar='XODR_FILE_DIR',
-        help='set the output XODR file path')
-    argparser.add_argument(
-        '-hr', '--header-path',
-        metavar='Header_FILE_DIR',
-        help='set the header file path')
+    argparser = argparse.ArgumentParser(description="Spawn vehicles for a specific crash scenario.")
     argparser.add_argument(
         '--lane-width',
         default=6.0,
@@ -112,32 +89,27 @@ def main():
         help='set center of map to the origin coordinates')
 
 
-    if len(sys.argv) < 2:
-        argparser.print_help()
-        return
-
     args = argparser.parse_args()
 
+    os.makedirs(CLIPPED_XODR_DIR, exist_ok=True)
 
-    osm_dir = args.input_dir
-    xodr_dir = args.output_dir
-    header_dir = args.header_dir
+    converted_files = 0
 
-    os.makedirs(xodr_dir, exist_ok=True)
-
-    for filename in os.listdir(osm_dir):
-        if filename == "map_510070_edited.osm":
+    for filename in os.listdir(EDITED_OSM_DIR):
+        if filename.endswith(".osm"):
             try:
-                print(f"{filename} started conversion\n")
-                osm_path = os.path.join(osm_dir, filename)
-                xodr_file = filename.replace("_edited.osm", ".xodr")
-                xodr_path = os.path.join(xodr_dir, xodr_file)
-                header_file = filename.replace("_edited.osm", "_header.txt")
-                header_path = os.path.join(header_dir, header_file)
+                crash_id = filename.split("_")[1]
+                print(f"{crash_id} started conversion\n")
+                osm_path = os.path.join(EDITED_OSM_DIR, filename)
+                xodr_path = os.path.join(CLIPPED_XODR_DIR, f"map_{crash_id}.xodr")
+                header_path = os.path.join(CLIPPED_HEADERS_DIR, f"map_{crash_id}_header.txt")
                 convert(args, osm_path, xodr_path, header_path)
                 
+                converted_files += 1
             except Exception as e:
                 print('\nAn error has occurred in conversion.', e)
+
+    print("Converted files: ", converted_files)
 
 if __name__ == '__main__':
 

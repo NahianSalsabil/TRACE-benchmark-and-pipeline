@@ -129,7 +129,6 @@ class OpenDRIVEChecker:
                 
                 parsed_junctions.append(junction_data)    
             
-            print(f"SUCCESS: Parsed {len(parsed_roads)} roads from XODR data.")
             return parsed_roads, parsed_junctions
 
         except ET.ParseError as e:
@@ -314,182 +313,170 @@ class OpenDRIVEChecker:
         
         return final_x, -final_y
     
-    def get_trajectory(self, crash_P, P, road_id, side, step_size, overshoot=0):
+    def get_trajectory(self, crash_P, P, road_id, step_size, overshoot=0):
         
         road = next((r for r in self.road_data if r['id'] == road_id), None)
         if not road:
             print(f"Error: Road {road_id} not found.")
             return []
 
+        # --- Helper: Map global (x,y) to Road (s, t) ---
         def _find_location_on_road(target_point):
             best_match = {
-                'distance': float('inf'),
-                'type': None,
-                'road_id': None,
-                's': None,
-                's_local': None,
-                't': None,
-                'P_ref_x': None,
-                'P_ref_y': None,
-                'hdg': None,
-                'geom_index': -1,
-                't_norm': None
+                'distance': float('inf'), 'road_id': None,
+                's': None, 't': None, 'hdg': None,
+                'geom_index': -1, 's_local': None
             }
             P_x, P_y = target_point
 
             for i, geom in enumerate(road['geometry']):   
                 P_ref, t_norm = None, None
-                roadtype = None
                 hdg, length = 0.0, geom['length']
                 
+                # 1. Get Reference Point and Tangent on the Reference Line
                 if geom['type'] == 'line':
                     P_start = (geom['x'], geom['y'])
                     hdg = geom['hdg']
-                    P_end = (
-                        geom['x'] + length * math.cos(hdg),
-                        geom['y'] + length * math.sin(hdg)
-                    )
+                    P_end = (geom['x'] + length * math.cos(hdg), geom['y'] + length * math.sin(hdg))
                     P_ref, t_norm = self._calculate_closest_point_on_line(target_point, P_start, P_end)
-                    roadtype = 'line'
-
+                
                 elif geom['type'] == 'paramPoly3':
                     P_ref, t_norm = self._calculate_closest_point_on_paramPoly3(target_point, geom)
                     (_, _), (Tx, Ty) = self._get_paramPoly3_point_and_tangent(geom, t_norm)
                     hdg = math.atan2(Ty, Tx)
-                    roadtype = 'parampoly'
 
                 distance = math.sqrt((P_x - P_ref[0])**2 + (P_y - P_ref[1])**2)
 
-                # Check if this geometry is the closest match
                 if distance <= best_match['distance']:
-                    s_current_geom = t_norm * length
-                    s_total = geom['s'] + s_current_geom
-                    
-                    # Determine orientation relative to road (Forward/Backward check helper)
-                    Tx = math.cos(hdg)
-                    Ty = math.sin(hdg)
-                    Vx = P_x - P_ref[0]
-                    Vy = P_y - P_ref[1]
+                    # Calculate signed lateral offset (t)
+                    Tx, Ty = math.cos(hdg), math.sin(hdg)
+                    Vx, Vy = P_x - P_ref[0], P_y - P_ref[1]
+                    # Cross product for side determination
                     signed_distance = distance * math.copysign(1, -(Tx * Vy - Ty * Vx))
 
-                    if 0 <= t_norm <= 1:
-                        best_match['type'] = roadtype
-                        best_match['distance'] = distance
-                        best_match['road_id'] = road_id
-                        best_match['s'] = s_total
-                        best_match['s_local'] = s_current_geom
-                        best_match['t'] = signed_distance
-                        best_match['P_ref_x'] = P_ref[0]    #in opendrive coordinate
-                        best_match['P_ref_y'] = P_ref[1]    #in opendrive coordinate
-                        best_match['geom_index'] = i
-                        best_match['t_norm'] = max(0.0, min(1.0, t_norm)) # Clamp for safety
-                        if signed_distance < 0:
-                            best_match['hdg'] = hdg + math.pi
-                        else:
-                            best_match['hdg'] = hdg
-
+                    best_match.update({
+                        'distance': distance, 'road_id': road_id,
+                        's': geom['s'] + (t_norm * length),
+                        's_local': t_norm * length,
+                        't': signed_distance,
+                        'hdg': hdg, 'geom_index': i
+                    })
             return best_match
 
-        # 1. Find Start and Crash Locations
+        # --- Helper: Calculate Global (X,Y) from (S, T) ---
+        def _get_global_point(target_s, target_t):
+            # Find the geometry segment corresponding to this S
+            target_geom = None
+            for geom in road['geometry']:
+                if geom['s'] <= target_s <= (geom['s'] + geom['length']):
+                    target_geom = geom
+                    break
+            
+            # Handle edge case: target_s slightly beyond last geom due to float precision
+            if target_geom is None and road['geometry']:
+                target_geom = road['geometry'][-1]
+
+            local_s = target_s - target_geom['s']
+            
+            # Calculate Reference Point (on center line)
+            ref_x, ref_y, ref_hdg = 0, 0, 0
+            
+            if target_geom['type'] == 'line':
+                ref_hdg = target_geom['hdg']
+                ref_x = target_geom['x'] + local_s * math.cos(ref_hdg)
+                ref_y = target_geom['y'] + local_s * math.sin(ref_hdg)
+            
+            elif target_geom['type'] == 'paramPoly3':
+                # Assuming you have a helper that gets point/tangent from Poly3 at local_s
+                # Note: t_norm usually 0..1, check your implementation requirements. 
+                # If your paramPoly helper takes 0..1, use: local_s / target_geom['length']
+                t_norm = local_s / target_geom['length'] if target_geom['length'] > 0 else 0
+                (ref_x, ref_y), (Tx, Ty) = self._get_paramPoly3_point_and_tangent(target_geom, t_norm)
+                ref_hdg = math.atan2(Ty, Tx)
+
+            # Apply Lateral Offset (t)
+            # Assuming standard OpenDRIVE: +t is Left, -t is Right relative to heading
+            # x = x_ref - t * sin(hdg)
+            # y = y_ref + t * cos(hdg)
+            final_x = ref_x + target_t * math.sin(ref_hdg)
+            final_y = ref_y - target_t * math.cos(ref_hdg)
+            
+            return (final_x, final_y)
+
+        # 1. Map Start and Crash points
         start_loc = _find_location_on_road(P)
         crash_loc = _find_location_on_road(crash_P)
 
-        if start_loc['geom_index'] == -1 or crash_loc['geom_index'] == -1:
-            print("Error: Could not map points to road geometry.")
+        if start_loc['s'] is None or crash_loc['s'] is None:
             return []
 
-        # 2. Determine Direction and Range
-        # We add an overshoot buffer (e.g., 20 meters) to drive PAST the crash point
-        OVERSHOOT = overshoot 
+        s_start = start_loc['s']
+        s_crash = crash_loc['s']
+        t_start = start_loc['t']
+        t_crash = crash_loc['t']
         
-        geometries = road['geometry']
+        # 2. Determine Steps and Direction
         trajectory = []
         
-        print(f"Start S: {start_loc['s']:.2f}, Crash S: {crash_loc['s']:.2f}")
+        # Is forward or backward?
+        direction = 1 if s_crash >= s_start else -1
+        
+        # Generate list of target S values
+        s_values = []
+        
+        # A. Fill points from Start to Crash
+        current_s = s_start
+        dist_to_crash = abs(s_crash - s_start)
+        num_steps = int(dist_to_crash / step_size)
+        
+        for i in range(num_steps + 1):
+            s_values.append(s_start + (i * step_size * direction))
+        
+        # IMPORTANT: Force the exact Crash S into the list
+        # We remove the last point if it's too close to crash_s to avoid duplicates/tiny steps
+        if s_values and abs(s_values[-1] - s_crash) < 0.1:
+            s_values.pop()
+        s_values.append(s_crash)
+        
+        # B. Fill points for Overshoot (Post-Crash)
+        # We continue past s_crash by overshoot amount
+        if overshoot > 0:
+            current_s = s_crash
+            dist_overshoot = overshoot
+            num_over_steps = int(dist_overshoot / step_size)
+            
+            for i in range(1, num_over_steps + 1):
+                s_values.append(s_crash + (i * step_size * direction))
 
-        # CASE A: Moving Forward (Start S < Crash S)
-        if start_loc['s'] <= crash_loc['s']:
-            direction = 1
-            print("Direction: Forward (s increasing)")
+        # 3. Generate Waypoints with Interpolation
+        for s_curr in s_values:
             
-            # Calculate target global S (Crash + Buffer)
-            target_s = crash_loc['s'] + OVERSHOOT
+            # Calculate interpolation ratio (0.0 at start, 1.0 at crash)
+            # If we are in the overshoot phase (past crash), we clamp ratio to 1.0 
+            # (meaning we stay at the crash lateral offset, parallel to road)
             
-            # Iterate through relevant segments from Start Index onwards
-            current_geom_idx = start_loc['geom_index']
-            
-            while current_geom_idx < len(geometries):
-                geom = geometries[current_geom_idx]
-                length = geom['length']
-                geom_start_s = geom['s']
+            if direction == 1:
+                ratio = (s_curr - s_start) / (s_crash - s_start) if s_crash != s_start else 1.0
+            else:
+                ratio = (s_start - s_curr) / (s_start - s_crash) if s_start != s_crash else 1.0
                 
-                # Determine where to start and end ON THIS SEGMENT
-                # If it's the first segment, start at the calculated local S. Otherwise start at 0.
-                if current_geom_idx == start_loc['geom_index']:
-                    current_local_s = start_loc['s_local']
-                else:
-                    current_local_s = 0.0
-                
-                # Loop through this segment
-                while current_local_s <= length:
-                    global_s = geom_start_s + current_local_s
-                    
-                    # Stop if we have gone past the target overshoot
-                    if global_s > target_s:
-                        break
-                    
-                    px, py = self._calculate_offset_point(road, geom, current_local_s, side)
-                    trajectory.append((px, py))
-                    
-                    current_local_s += step_size
-
-                if global_s > target_s:
-                    break # Stop processing further segments
-                    
-                current_geom_idx += 1
-
-        # CASE B: Moving Backward (Start S > Crash S)
-        else:
-            direction = -1
-            print("Direction: Backward (s decreasing)")
+            # Clamp ratio for overshoot phase
+            # If ratio > 1, it means we passed the crash point. 
+            # keeping t fixed at t_crash ensures we drive straight past the crash.
+            effective_ratio = min(max(ratio, 0.0), 1.0)
             
-            # Calculate target global S (Crash - Buffer)
-            target_s = crash_loc['s'] - OVERSHOOT
+            # Linear Interpolation of Lateral Offset (t)
+            # This creates the "Smooth" trajectory
+            t_current = t_start + (t_crash - t_start) * effective_ratio
             
-            # Iterate backwards from Start Index
-            current_geom_idx = start_loc['geom_index']
-            
-            while current_geom_idx >= 0:
-                geom = geometries[current_geom_idx]
-                length = geom['length']
-                geom_start_s = geom['s']
-                
-                # If first segment, start at local S. Otherwise start at end of segment (length).
-                if current_geom_idx == start_loc['geom_index']:
-                    current_local_s = start_loc['s_local']
-                else:
-                    current_local_s = length
-                    
-                # Loop "backwards" through this segment
-                while current_local_s >= 0:
-                    global_s = geom_start_s + current_local_s
-                    
-                    if global_s < target_s:
-                        break
-                    
-                    px, py = self._calculate_offset_point(road, geom, current_local_s, side)
-                    trajectory.append((px, py))
-                    
-                    current_local_s -= step_size # Decrement
-                
-                if global_s < target_s:
-                    break
-                    
-                current_geom_idx -= 1
+            # Calculate Global XY
+            px, py = _get_global_point(s_curr, t_current)
+            trajectory.append((px, -py))
 
         return trajectory
 
-def clean_trajectory(trajectory, min_dist=0.5, max_angle_deg=120):
+
+def clean_trajectory(trajectory, min_dist=0.25, max_angle_deg=90):
     """
     Removes points that cause the path to backtrack or zigzag.
     
@@ -557,18 +544,16 @@ def calculate_synchronized_speeds(xodrPath, crash_P,
     v1_P = (v1_x, -v1_y)
     v2_x, v2_y = v2_P
     v2_P = (v2_x, -v2_y)
-    v1_side = "right"
-    v2_side = "right"
 
     with open(xodrPath, 'r') as file:
         xodr_content = file.read()
 
     generator = OpenDRIVEChecker(xodr_content)
 
-    step_size = 0.5
+    step_size = 0.25
     
-    traj_v1_measure = generator.get_trajectory(crash_P, v1_P, v1_road_id, v1_side, step_size, overshoot=0.0)
-    traj_v2_measure = generator.get_trajectory(crash_P, v2_P, v2_road_id, v2_side, step_size, overshoot=0.0)
+    traj_v1_measure = generator.get_trajectory(crash_P, v1_P, v1_road_id, step_size, overshoot=0.0)
+    traj_v2_measure = generator.get_trajectory(crash_P, v2_P, v2_road_id, step_size, overshoot=0.0)
 
     traj_v1_measure = clean_trajectory(traj_v1_measure)
     traj_v2_measure = clean_trajectory(traj_v2_measure)
@@ -592,51 +577,48 @@ def calculate_synchronized_speeds(xodrPath, crash_P,
     print(f"Distance to Crash - Vehicle 1: {dist_v1:.2f} m")
     print(f"Distance to Crash - Vehicle 2: {dist_v2:.2f} m")
 
+    if (v1_speed == 0 or dist_v1 == 0) and v2_speed > 0:
+        return v1_speed, v2_speed * 1.60934
+    if v1_speed > 0 and (v2_speed == 0 or dist_v2 == 0):
+        return v1_speed * 1.60934, v2_speed
+
     if v1_speed != -1:
-        v1_ms = v1_speed * 0.44704
-    
-        if v1_ms <= 0.1:
-            print("Error: Master vehicle speed is too low.")
-            return 0.0, 0.0
-
-        ttc = dist_v1 / v1_ms
-        print(f"Time to Collision: {ttc:.4f} seconds")
-
-        v2_ms = dist_v2 / ttc
-        v2_mph_adjusted = v2_ms / 0.44704
+        v1_kmh = v1_speed * 1.60934
         
-        v1_kmh = v1_ms * 3.6
-        v2_kmh = v2_ms * 3.6
+        ttc = dist_v1 / (v1_kmh / 3.6)
+        print(f"Time to Collision: {ttc} seconds")
+
+        v2_kmh = dist_v2 / ttc * 3.6
+
+        # 4. Conversions strictly for display
+        v2_mph_adjusted = v2_kmh / 1.60934
+
         
-        print(f"V1 Speed (Fixed): {v1_speed} MPH ({v1_ms:.2f} m/s)")
+        print(f"V1 Speed (Fixed): {v1_speed} MPH ({v1_kmh:.2f} km/h)")
         print(f"V2 Speed (Reported): {v2_speed} MPH")
-        print(f"V2 Speed (Synced):   {v2_mph_adjusted:.2f} MPH ({v2_ms:.2f} m/s)")
-    
+        print(f"V2 Speed (Synced):   {v2_mph_adjusted:.2f} MPH ({v2_kmh:.2f} km/h)")
+
         return v1_kmh, v2_kmh
     
-    if v2_speed != -1:
-        v2_ms = v2_speed * 0.44704
+    # If both vehicles speed is absent in the report, assume a speed of one vehicle and calculate for other.
+    if v2_speed == -1:
+        v2_speed = 20
+
+    v2_kmh = v2_speed * 1.60934
+
+    ttc = dist_v2 / (v2_kmh / 3.6)
+    print(f"Time to Collision: {ttc:.4f} seconds")
+
+    v1_kmh = dist_v1 / ttc * 3.6
+
+    v1_mph_adjusted = v1_kmh / 1.60934
     
-        if v2_ms <= 0.1:
-            print("Error: Master vehicle speed is too low.")
-            return 0.0, 0.0
+    print(f"V2 Speed (Fixed): {v2_speed} MPH ({v2_kmh:.2f} km/h)")
+    print(f"V1 Speed (Reported): {v1_speed} MPH")
+    print(f"V1 Speed (Synced):   {v1_mph_adjusted:.2f} MPH ({v1_kmh:.2f} km/h)")
 
-        ttc = dist_v2 / v2_ms
-        print(f"Time to Collision: {ttc:.4f} seconds")
+    return v1_kmh, v2_kmh
 
-        v1_ms = dist_v1 / ttc
-        v1_mph_adjusted = v2_ms / 0.44704
-        
-        v1_kmh = v1_ms * 3.6
-        v2_kmh = v2_ms * 3.6
-        
-        print(f"V2 Speed (Fixed): {v2_speed} MPH ({v2_ms:.2f} m/s)")
-        print(f"V1 Speed (Reported): {v1_speed} MPH")
-        print(f"V1 Speed (Synced):   {v1_mph_adjusted:.2f} MPH ({v1_ms:.2f} m/s)")
-    
-        return v1_kmh, v2_kmh
-
-    return 0, 0
 
 def route_generator(xodrPath, trajectory_path, crash_P, P_x, P_y, road_id, fileopen):
    
@@ -645,19 +627,16 @@ def route_generator(xodrPath, trajectory_path, crash_P, P_x, P_y, road_id, fileo
 
     generator = OpenDRIVEChecker(xodr_content)
 
-    SIDE = 'right' # or 'left'
     step_size = 5
+    overshoot = 20
 
     P_opendrive = -P_y
     P = (P_x, P_opendrive)
 
-    points = generator.get_trajectory(crash_P, P, road_id, SIDE, step_size)
-    points = clean_trajectory(points)
+    points = generator.get_trajectory(crash_P, P, road_id, step_size, overshoot)
+    points = clean_trajectory(points, min_dist=0.5)
     
     if points:
-        print(f"Generated {len(points)} points for Road {road_id}, Side: {SIDE}")
-        
-        # Save
         with open(trajectory_path, fileopen) as f:
             for p in points:
                 f.write(f"{p[0]},{p[1]}\n")

@@ -1,12 +1,25 @@
 import carla
+import argparse
+import sys
 import os
 from settings import TRAJECTORY_DIR
 
 client = carla.Client('localhost', 2000)
 world = client.get_world()
 
+parser = argparse.ArgumentParser(description="Spawn vehicles for a specific crash scenario.")
+    
+parser.add_argument("crash_id", type=int, nargs='?', help="The ID of the crash scenario to simulate.")
+
+args = parser.parse_args()
+
+if args.crash_id is None:
+    print("Error: Crash ID is missing. Please provide a crash ID (e.g., python script.py 510163).")
+    sys.exit(1)
+crash_id = args.crash_id
+
 #take input from a file with multiple x,y pairs
-with open(os.path.join(TRAJECTORY_DIR, f"trajectory_{510019}.txt"), 'r') as f:
+with open(os.path.join(TRAJECTORY_DIR, f"trajectory_{args.crash_id}.txt"), 'r') as f:
     lines = f.readlines()
 
 for i in range(len(lines)):

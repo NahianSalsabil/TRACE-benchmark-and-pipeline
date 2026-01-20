@@ -8,7 +8,6 @@ from settings import EDITED_OSM_DIR
 from settings import SUMMARY_DIR
 from settings import CLIPPED_HEADERS_DIR
 
-
 regionSpecificScaleFactor = 1.0
 
 def modify_file(osm_input_path, summary_path, osm_edited_path, header_path):
@@ -65,9 +64,7 @@ def modify_file(osm_input_path, summary_path, osm_edited_path, header_path):
     print(f"Done. Header written to {header_path}")
 
 
-if __name__ == "__main__":
-
-
+def main():
     os.makedirs(EDITED_OSM_DIR, exist_ok=True)
     os.makedirs(CLIPPED_HEADERS_DIR, exist_ok=True)
     edited_count = 0
@@ -93,3 +90,8 @@ if __name__ == "__main__":
             except:
                 print(f'\nAn error has occurred in conversion for file {filename}.')
     print(f"Edited {edited_count} files.")
+
+if __name__ == "__main__":
+    main()
+
+    

@@ -81,7 +81,7 @@ def verify_CP_on_road(converted_path, xodr_path):
         crash_y = float(line.split(",")[1].strip())
 
     crash_P = (crash_x, crash_y)
-    on_road, _, _, distance, _ = check_and_get_direction(True, crash_P, xodr_path)
+    on_road, _, _, distance, _ = check_and_get_direction(crash_P, None, xodr_path, snap = False)
 
     if not on_road:
         return on_road, f"Crash Point is {distance} meter off the road."

@@ -9,6 +9,9 @@ REPORTS_DIR = "data/crashes/reports"
 SUMMARY_DIR = "data/crashes/summary"
 MODIFIED_SUMMARY_DIR = "data/crashes/modified_summary"
 
+#osmium_command
+OSMIUM_COMMAND_FILE = "data/maps/command_osmium.txt"
+
 # maps
 MAPS_OSM_DIR            = "data/maps/osm"
 MAP_BBOX_DIR            = "data/maps/map_bbox"
@@ -25,7 +28,7 @@ REAL_POINTS_DIR      = "data/points/real_points"
 CONVERTED_POINTS_DIR = "data/points/converted_points"
 SEGMENTS_DIR         = "data/points/segments"
 ROUTES_DIR           = "data/points/routes"
-SEGMENT_BBOX_DIR     = "data/points/bbox"
+SEGMENT_BBOX_DIR     = "data/points/segment_bbox"
 SCENE_POINTS_DIR     = "data/points/scene_points"
 TRAJECTORY_DIR       = "data/points/trajectory"
 
@@ -34,4 +37,4 @@ PROMPTS_DIR     = "data/llm/prompts"
 REASONINGS_DIR  = "data/llm/reasoning"
 
 # output
-FINAL_OUTPUT_DIR = "data/output"
+SIMULATION_DIR = "data/simulations"

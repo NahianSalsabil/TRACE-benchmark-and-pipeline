@@ -7,13 +7,14 @@ RUN chown -R carla:carla /home/carla
 
 COPY --chown=carla:carla . /home/carla/app
 
-RUN mv /home/carla/app/start.sh /home/carla/ \
-    && mv /home/carla/app/scripts/* /home/carla/PythonAPI/util/
+RUN mv /home/carla/app/scripts/* /home/carla/PythonAPI/util/ \
+    && mv /home/carla/app/data /home/carla/PythonAPI/util/
 
 RUN ln -s /home/carla/PythonAPI/carla/agents /home/carla/PythonAPI/util/agents
 
 RUN apt-get update && apt-get install -y \
     wget \
+    osmium-tool \
     xdg-user-dirs \
     libvulkan1 \
     mesa-vulkan-drivers \

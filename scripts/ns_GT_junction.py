@@ -313,7 +313,7 @@ class OpenDRIVEChecker:
         
         return final_x, -final_y
     
-    def get_trajectory(self, crash_P, P, junction_id, junction_road_id, road_id, side, step_size, stop_at_crash_point = False):
+    def get_trajectory(self, crash_P, P, junction_id, junction_road_id, road_id, step_size, stop_at_crash_point = False):
         
         road = next((r for r in self.road_data if r['id'] == road_id), None)
         if not road:
@@ -398,6 +398,12 @@ class OpenDRIVEChecker:
         start = False
         end = False
 
+        side = None
+        if best_match['t'] > 0:
+            side = "right"
+        if best_match['t'] < 0:
+            side = "left"
+
         """
         starting from the current road segment, it checks in which side the intended junction connects.
         Then it expand in that side and keep appending all the segments.
@@ -411,8 +417,7 @@ class OpenDRIVEChecker:
             if road['predecessor'][0] == 'junction' and road['predecessor'][1] == junction_id:
                 start = True
 
-        # print("start: ", start)
-        # print("end: ", end)
+        
 
         geometries = road['geometry']
         start_idx = best_match['geom_index']
@@ -427,23 +432,19 @@ class OpenDRIVEChecker:
         trajectory = []
 
         # print("segments to process: ", segments_to_process)
+        # print("start: ", start)
+        # print("end: ", end)
 
+        segment_points = []
         for i, geom in enumerate(segments_to_process):
             length = geom['length']
-            
-            current_s_local = 0.0
-            end_s_local = length
-            
+      
             is_first_segment = (i == 0)
 
-            if is_first_segment:
-                if end:
-                    current_s_local = best_match['t_norm'] * length
-
-            segment_points = []
-            
             if end:
-                s_iter = current_s_local
+                start_s = best_match['t_norm'] * length if is_first_segment else 0
+
+                s_iter = start_s
                 while s_iter < length:
                     px, py = self._calculate_offset_point(road, geom, s_iter, side)
                     segment_points.append((px, py))
@@ -595,8 +596,7 @@ def clean_trajectory(trajectory, min_dist=5, max_angle_deg=90):
     return cleaned
 
 
-def calculate_synchronized_speeds(xodrPath, crash_P, 
-                                    v1_P, v1_junction_id, v1_junction_road_id, v1_road_id, v1_speed,
+def calculate_synchronized_speeds(xodrPath, crash_P, v1_P, v1_junction_id, v1_junction_road_id, v1_road_id, v1_speed,
                                     v2_P, v2_junction_id, v2_junction_road_id, v2_road_id, v2_speed):
     """
     Calculates the exact speed required for Vehicle 2 to hit the crash point 
@@ -609,8 +609,6 @@ def calculate_synchronized_speeds(xodrPath, crash_P,
     v1_P = (v1_x, -v1_y)
     v2_x, v2_y = v2_P
     v2_P = (v2_x, -v2_y)
-    v1_side = "right"
-    v2_side = "right"
 
     with open(xodrPath, 'r') as file:
         xodr_content = file.read()
@@ -619,8 +617,8 @@ def calculate_synchronized_speeds(xodrPath, crash_P,
 
     step_size = 5
     
-    traj_v1_measure = generator.get_trajectory(crash_P, v1_P, v1_junction_id, v1_junction_road_id, v1_road_id, v1_side, step_size, stop_at_crash_point=True)
-    traj_v2_measure = generator.get_trajectory(crash_P, v2_P, v2_junction_id, v2_junction_road_id, v2_road_id, v2_side, step_size, stop_at_crash_point=True)
+    traj_v1_measure = generator.get_trajectory(crash_P, v1_P, v1_junction_id, v1_junction_road_id, v1_road_id, step_size, stop_at_crash_point=True)
+    traj_v2_measure = generator.get_trajectory(crash_P, v2_P, v2_junction_id, v2_junction_road_id, v2_road_id, step_size, stop_at_crash_point=True)
 
     traj_v1_measure = clean_trajectory(traj_v1_measure)
     traj_v2_measure = clean_trajectory(traj_v2_measure)
@@ -641,51 +639,46 @@ def calculate_synchronized_speeds(xodrPath, crash_P,
     dist_v1 = calculate_path_length(traj_v1_measure)
     dist_v2 = calculate_path_length(traj_v2_measure)
 
-    if v1_speed != -1:
-        v1_ms = v1_speed * 0.44704
-    
-        if v1_ms <= 0.1:
-            print("Error: Master vehicle speed is too low.")
-            return 0.0, 0.0
+    if (v1_speed == 0 or dist_v1 == 0) and v2_speed > 0:
+        return v1_speed, v2_speed * 1.60934
+    if v1_speed > 0 and (v2_speed == 0 or dist_v2 == 0):
+        return v1_speed * 1.60934, v2_speed
 
-        ttc = dist_v1 / v1_ms
+    if v1_speed != -1:
+        v1_kmh = v1_speed * 1.60934
+        
+        ttc = dist_v1 / (v1_kmh / 3.6)
         print(f"Time to Collision: {ttc:.4f} seconds")
 
-        v2_ms = dist_v2 / ttc
-        v2_mph_adjusted = v2_ms / 0.44704
-        
-        v1_kmh = v1_ms * 3.6
-        v2_kmh = v2_ms * 3.6
+        v2_kmh = v1_kmh * (dist_v2 / dist_v1)
+
+        # 4. Conversions strictly for display
+        v2_mph_adjusted = v2_kmh / 1.60934
         
         print(f"V1 Speed (Fixed): {v1_speed} MPH ({v1_kmh:.2f} km/h)")
         print(f"V2 Speed (Reported): {v2_speed} MPH")
         print(f"V2 Speed (Synced):   {v2_mph_adjusted:.2f} MPH ({v2_kmh:.2f} km/h)")
-    
+
         return v1_kmh, v2_kmh
     
-    if v2_speed != -1:
-        v2_ms = v2_speed * 0.44704
+    # If both vehicles speed is absent in the report, assume a speed of one vehicle and calculate for other.
+    if v2_speed == -1:
+        v2_speed = 20
+
+    v2_kmh = v2_speed * 1.60934
+
+    ttc = dist_v2 / (v2_kmh / 3.6)
+    print(f"Time to Collision: {ttc:.4f} seconds")
+
+    v1_kmh = v2_kmh * (dist_v1 / dist_v2)
+
+    v1_mph_adjusted = v1_kmh / 1.60934
     
-        if v2_ms <= 0.1:
-            print("Error: Master vehicle speed is too low.")
-            return 0.0, 0.0
+    print(f"V2 Speed (Fixed): {v2_speed} MPH ({v2_kmh:.2f} km/h)")
+    print(f"V1 Speed (Reported): {v1_speed} MPH")
+    print(f"V1 Speed (Synced):   {v1_mph_adjusted:.2f} MPH ({v1_kmh:.2f} km/h)")
 
-        ttc = dist_v2 / v2_ms
-        print(f"Time to Collision: {ttc:.4f} seconds")
-
-        v1_ms = dist_v1 / ttc
-        v1_mph_adjusted = v1_ms / 0.44704
-        
-        v1_kmh = v1_ms * 3.6
-        v2_kmh = v2_ms * 3.6
-        
-        print(f"V2 Speed (Fixed): {v2_speed} MPH ({v2_ms:.2f} m/s)")
-        print(f"V1 Speed (Reported): {v1_speed} MPH")
-        print(f"V1 Speed (Synced):   {v1_mph_adjusted:.2f} MPH ({v1_ms:.2f} m/s)")
-    
-        return v1_kmh, v2_kmh
-
-    return 0, 0
+    return v1_kmh, v2_kmh
 
 def route_generator(xodrPath, trajectory_path, crash_P, P_x, P_y, junction_id, junction_road_id, road_id, fileopen):
     
@@ -694,17 +687,16 @@ def route_generator(xodrPath, trajectory_path, crash_P, P_x, P_y, junction_id, j
 
     generator = OpenDRIVEChecker(xodr_content)
 
-    SIDE = 'right' # or 'left'
     step_size = 5
 
     P_opendrive = -P_y
     P = (P_x, P_opendrive)
 
-    points = generator.get_trajectory(crash_P, P, junction_id, junction_road_id, road_id, SIDE, step_size)
+    points = generator.get_trajectory(crash_P, P, junction_id, junction_road_id, road_id, step_size)
     points = clean_trajectory(points)
     
     if points:
-        print(f"Generated {len(points)} points for Road {road_id}, Side: {SIDE}")
+        print(f"Generated {len(points)} points for Road {road_id}")
         
         # Save
         with open(trajectory_path, fileopen) as f:

@@ -2,12 +2,11 @@ import os
 
 from settings import ELEVANTION_PASSED_DIR
 from settings import MAP_BBOX_DIR
+from settings import OSMIUM_COMMAND_FILE
+from settings import MAPS_OSM_DIR
+from settings import CLIPPED_OSM_DIR
 
-
-command_file = "data/maps/command_osmium.txt"
-
-
-with open(command_file, "w", encoding="UTF-8") as c_file:
+with open(OSMIUM_COMMAND_FILE, "w", encoding="UTF-8") as c_file:
     file_count = 0
     for filename in os.listdir(ELEVANTION_PASSED_DIR):
         try:
@@ -19,8 +18,8 @@ with open(command_file, "w", encoding="UTF-8") as c_file:
                     min_lat = file.readline().split(':')[1].strip()
                     min_lon = file.readline().split(':')[1].strip()
 
-                    command = "osmium extract -b " + min_lon + "," + min_lat + "," + max_lon + "," + max_lat
-                    command += " ns-maps/osm/map_" + crash_id + ".osm -o ns-maps/clipped_osm/map_" + crash_id + ".osm" 
+                    command = "osmium extract -b " + min_lon + "," + min_lat + "," + max_lon + "," + max_lat + " "
+                    command +=  os.path.join(MAPS_OSM_DIR, f"map_{crash_id}.osm") + " -o " + os.path.join(CLIPPED_OSM_DIR, f"map_{crash_id}.osm")
                     c_file.write(crash_id)
                     c_file.write("\n")
                     c_file.write(command)

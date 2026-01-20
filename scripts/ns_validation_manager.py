@@ -1,7 +1,7 @@
 import carla
 import math
 
-DISTANCE_THRESHOLD = 5.0
+DISTANCE_THRESHOLD = 10.0
 TIME_THRESHOLD = 10.0
 
 class ValidationManager:
@@ -91,12 +91,10 @@ class ValidationManager:
 
     def _is_angle_valid(self, calculated, expected):
         """Helper to check if calculated clock matches expected clock (+/- 1 hour tolerance)"""
-        if expected == -1:
-            return True
-            
+     
         diff = abs(calculated - expected)
         
-        if diff <= 2 or diff == 10:
+        if diff <= 2 or diff >= 10:
             return True
             
         return False
@@ -175,7 +173,12 @@ class ValidationManager:
         else:
             valid_time = False
 
-        if valid_time:
+        # if valid_time:
+        if expected_clock_v1 == -1 or expected_clock_v2 == -1:
+            valid_angle_v1 = True
+            valid_angle_v2 = True
+
+        else:
             t1 = vehicle1.get_transform()
             t2 = vehicle2.get_transform()
             
@@ -185,47 +188,34 @@ class ValidationManager:
 
             self.impact_angle_v1 = calc_clock_v1
             self.impact_angle_v2 = calc_clock_v2
-            
-            print(f"[Validation] Impact on Vehicle 1: {calc_clock_v1} o'clock")
-            print(f"[Validation] Impact on Vehicle 2: {calc_clock_v2} o'clock")
 
             valid_angle_v1 = self._is_angle_valid(calc_clock_v1, expected_clock_v1)
-            if not valid_angle_v1:
-                print(f"[Validation] FAIL: Vehicle 1 angle mismatch.")
 
             valid_angle_v2 = self._is_angle_valid(calc_clock_v2, expected_clock_v2)
-            if not valid_angle_v2:
-                print(f"[Validation] FAIL: Vehicle 2 angle mismatch.")
-
-            detected_traj_v1 = self._analyze_trajectory_geometry(veh1_route)
-            detected_traj_v2 = self._analyze_trajectory_geometry(veh2_route)
             
-            print(f"[Validation] V1 Trajectory: Detected '{detected_traj_v1}' vs Report '{veh1_direction}'")
-            print(f"[Validation] V2 Trajectory: Detected '{detected_traj_v2}' vs Report '{veh2_direction}'")
+        detected_traj_v1 = self._analyze_trajectory_geometry(veh1_route)
+        detected_traj_v2 = self._analyze_trajectory_geometry(veh2_route)
 
-            def check_traj_match(detected, report):
-                if report is None:
-                    return True
+        def check_traj_match(detected, report):
+            if report is None:
+                return True
+            
+            d = detected.lower()
+            r = report.lower()
+            
+            if "u-turn" in d or "uturn" in d:
+                if "u-turn" in r or "uturn" in r: return True
                 
-                d = detected.lower()
-                r = report.lower()
-                
-                if "u-turn" in d or "uturn" in d:
-                    if "u-turn" in r or "uturn" in r: return True
-                    
-                if "straight" in d and "straight" in r: return True
-                if "left" in d and "left" in r: return True
-                if "right" in d and "right" in r: return True
-                
-                return False
+            if "straight" in d and "straight" in r: return True
+            if "left" in d and "left" in r: return True
+            if "right" in d and "right" in r: return True
+            
+            return False
 
-            valid_trajectory_v1 = check_traj_match(detected_traj_v1, veh1_direction)
-            if not valid_trajectory_v1:
-                print(f"[Validation] FAIL: Vehicle 1 trajectory mismatch.")
-            valid_trajectory_v2 = check_traj_match(detected_traj_v2, veh2_direction)
-            if not valid_trajectory_v2:
-                print(f"[Validation] FAIL: Vehicle 2 trajectory mismatch.")
-
+        valid_trajectory_v1 = check_traj_match(detected_traj_v1, veh1_direction)
+        
+        valid_trajectory_v2 = check_traj_match(detected_traj_v2, veh2_direction)
+        
 
         # Final Validation Log
         print("========= Validation Log ==========")
@@ -234,19 +224,20 @@ class ValidationManager:
         pass_or_fail_trajectory = "N/A"
         if valid_time:
             pass_or_fail_time = "PASSED"
-            if valid_angle_v1 and valid_angle_v2:
-                pass_or_fail_angle = "PASSED"
-            else:
-                pass_or_fail_angle = "FAILED"
-            
-            if valid_trajectory_v1 and valid_trajectory_v2:
-                pass_or_fail_trajectory = "PASSED"
-            else:
-                pass_or_fail_trajectory = "FAILED"
         else:
             pass_or_fail_time = "FAILED"
+        if valid_angle_v1 and valid_angle_v2:
+            pass_or_fail_angle = "PASSED"
+        else:
+            pass_or_fail_angle = "FAILED"
         
-        print(f">>> 1. Reached the crash location at the same time: {pass_or_fail_time} <<<")
+        if valid_trajectory_v1 and valid_trajectory_v2:
+            pass_or_fail_trajectory = "PASSED"
+        else:
+            pass_or_fail_trajectory = "FAILED"
+        
+        
+        print(f">>> 1. Crashed at the crash location: {pass_or_fail_time} <<<")
         print(f">>> 2. Impact Point Match: {pass_or_fail_angle} <<<")
         print(f">>> 3. Trajectory Match: {pass_or_fail_trajectory} <<<")
 

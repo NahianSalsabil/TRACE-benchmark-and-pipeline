@@ -1,14 +1,26 @@
 import carla
 import json
+import sys
+import argparse
 import os
 from settings import SCENE_POINTS_DIR
 
 client = carla.Client('localhost', 2000)
 world = client.get_world()
 
-current_veh = None
+parser = argparse.ArgumentParser(description="Spawn vehicles for a specific crash scenario.")
+    
+parser.add_argument("crash_id", type=int, nargs='?', help="The ID of the crash scenario to simulate.")
 
-json_file_path = os.path.join(SCENE_POINTS_DIR, f"scenepoints_{510019}.json")
+args = parser.parse_args()
+
+if args.crash_id is None:
+    print("Error: Crash ID is missing. Please provide a crash ID (e.g., python script.py 510163).")
+    sys.exit(1)
+
+crash_id = args.crash_id
+
+json_file_path = os.path.join(SCENE_POINTS_DIR, f"scenepoints_{crash_id}.json")
 
 with open(json_file_path, 'r') as f:
     data = json.load(f)
@@ -45,7 +57,7 @@ world.debug.draw_string(
     location=carla.Location(x=crash_x, y=crash_y, z=0.5 + 5.5), 
     text=str(1), 
     draw_shadow=True, 
-    color=carla.Color(0, 255, 0, 255), 
+    color=carla.Color(255, 255, 255, 255), 
     life_time=120.0
 )
 
@@ -61,7 +73,7 @@ world.debug.draw_string(
     location=carla.Location(x=veh1_x, y=veh1_y, z=0.5 + 5.5), 
     text=str(2), 
     draw_shadow=True, 
-    color=carla.Color(0, 255, 0, 255), 
+    color=carla.Color(255, 255, 255, 255), 
     life_time=120.0
 )
 
@@ -77,6 +89,6 @@ world.debug.draw_string(
     location=carla.Location(x=veh2_x, y=veh2_y, z=0.5 + 5.5), 
     text=str(3), 
     draw_shadow=True, 
-    color=carla.Color(0, 255, 0, 255), 
+    color=carla.Color(255, 255, 255, 255), 
     life_time=120.0
 )

@@ -218,6 +218,57 @@ class OpenDRIVEChecker:
 
         return lane_width
 
+    def _is_direction_correct(self, spawn_P, crash_P, lane_hdg_odr):
+        """
+        Checks if the lane heading aligns with the vector from Spawn to Crash.
+        """
+        # 1. Vector from Spawn to Crash (in CARLA coordinates)
+        vec_crash_x = crash_P[0] - spawn_P[0]
+        vec_crash_y = crash_P[1] - spawn_P[1]
+
+        # 2. Vector of Lane Heading (converted to CARLA coordinates)
+        # OpenDRIVE +Y is CARLA -Y. So a heading of theta in ODR is (cos(theta), -sin(theta)) in CARLA.
+        vec_lane_x = math.cos(lane_hdg_odr)
+        vec_lane_y = -math.sin(lane_hdg_odr)
+
+        # 3. Dot Product
+        dot_product = (vec_crash_x * vec_lane_x) + (vec_crash_y * vec_lane_y)
+
+        # Positive means aligned (< 90 deg diff). Negative means opposed (> 90 deg diff).
+        return dot_product > 0
+
+    def _mirror_point_to_opposite_lane(self, spawn_P, best_match):
+        """
+        Flips the point across the road's center reference line.
+        Used when the car is in the oncoming traffic lane.
+        """
+        # Current Point in OpenDRIVE space (flip Y)
+        P_curr_x = spawn_P[0]
+        P_curr_y = -spawn_P[1]
+
+        # Reference Point (Center line) in OpenDRIVE space
+        P_ref_x = best_match['P_ref_x']
+        P_ref_y = best_match['P_ref_y']
+
+        # MATH: Mirror P_curr across P_ref
+        # Vector Center->Car = P_curr - P_ref
+        # New Vector Center->NewCar = -(P_curr - P_ref)
+        # NewCar = P_ref - (P_curr - P_ref) = 2*P_ref - P_curr
+        P_new_x = 2 * P_ref_x - P_curr_x
+        P_new_y = 2 * P_ref_y - P_curr_y
+
+        # Convert back to CARLA space (flip Y back)
+        carla_new_x = P_new_x
+        carla_new_y = -P_new_y
+
+        # Flip Heading 180 degrees (Pi radians)
+        new_hdg = best_match['hdg'] + math.pi
+        
+        # Normalize heading to -pi to pi
+        if new_hdg > math.pi: new_hdg -= 2 * math.pi
+
+        return carla_new_x, carla_new_y, new_hdg
+    
     def find_closest_road(self, P):
         best_match = {
             'distance': float('inf'),
@@ -228,6 +279,7 @@ class OpenDRIVEChecker:
             'P_ref_x': None,
             'P_ref_y': None,
             'hdg': None,
+            'both_lanes': None,
             'segment_corners': None 
         }
 
@@ -278,6 +330,12 @@ class OpenDRIVEChecker:
 
                 if distance <= best_match['distance']:
                     # print("found a road")
+                    lanes = road['lane_section']
+                    both = -1
+                    if lanes[0]['right_lanes'] and lanes[0]['left_lanes']:
+                        both = 1
+                    else:
+                        both = 0
 
                     s_current_geom = t_norm * length
                     s_total = geom['s'] + s_current_geom 
@@ -300,6 +358,7 @@ class OpenDRIVEChecker:
                         best_match['t'] = signed_distance
                         best_match['P_ref_x'] = P_ref[0]    #in opendrive coordinate
                         best_match['P_ref_y'] = P_ref[1]    #in opendrive coordinate
+                        best_match['both_lanes'] = both
                         if signed_distance < 0:
                             best_match['hdg'] = hdg + math.pi
                         else:
@@ -353,58 +412,64 @@ class OpenDRIVEChecker:
 
         return carla_snapped_x, carla_snapped_y, hdg_ref
 
-    def check_point_on_road(self, CP, spawn_P):
+    def check_point_on_road(self, spawn_P, crash_P, snap):
         P_x = spawn_P[0]
         P_y = spawn_P[1]
         P_opendrive = -P_y
         P = (P_x, P_opendrive)
         
         best_match = self.find_closest_road(P)
+        if best_match['road_id'] is None:
+            return False, None, None, None, None
 
-        if CP:
-            if best_match['road_id'] is not None:
-                road = next(r for r in self.map_data if r['id'] == best_match['road_id'])
-                lane_width = self._get_lane_width(road)
+        road = next(r for r in self.map_data if r['id'] == best_match['road_id'])
+        lane_width = self._get_lane_width(road)
+
+        final_x, final_y, final_hdg = P_x, P_y, best_match['hdg']
+        
+        if snap:
+            if 1 < best_match['distance'] < lane_width - 1:
+                final_x, final_y, final_hdg = P_x, P_y, best_match['hdg']
             
-                if best_match['distance'] < lane_width:
-                    return True, P_x, P_y, best_match['distance'], best_match['hdg']
-                else:
-                    return False, None, None, best_match['distance'], None
+            elif best_match['distance'] < 1:
+                # print("distance:", best_match['distance'])
+                print("Too close to the center boundary. New point calculating")
+                final_x, final_y, final_hdg = self.move_point_from_road(best_match)
+                is_modified = True
+            
+            elif best_match['distance'] > lane_width - 1:
+                # print("distance:", best_match['distance'])
+                print("Not on road. New Point Calculating...")
+                final_x, final_y, final_hdg = self.move_point_to_road(P, best_match)
+            
+            if crash_P is not None:
+                
+                if not self._is_direction_correct((final_x, final_y), crash_P, final_hdg):
+                    print(f"Wrong Direction Detected!")
+                    if best_match['both_lanes'] == 0:
+                        final_hdg += math.pi
 
-            else:
-                return False, None, None, None, None 
+                        final_hdg = (final_hdg + math.pi) % (2 * math.pi) - math.pi
+                    
+                    else:
+                        final_x, final_y, final_hdg = self._mirror_point_to_opposite_lane((final_x, final_y), best_match)
+
+            return True, final_x, final_y, best_match['distance'], final_hdg
         
         else:
-            if best_match['road_id'] is not None:
-                road = next(r for r in self.map_data if r['id'] == best_match['road_id'])
-                lane_width = self._get_lane_width(road)
-                
-                if 1 < best_match['distance'] < lane_width - 1:
-                    return True, P_x, P_y, best_match['distance'], best_match['hdg']
-                
-                elif best_match['distance'] < 1:
-                    # print("distance:", best_match['distance'])
-                    print("Too close to the center boundary. New point calculating")
-                    new_x, new_y, hdg = self.move_point_from_road(best_match)
-                    return True, new_x, new_y, best_match['distance'], hdg
-                
-                elif best_match['distance'] > lane_width - 1:
-                    # print("distance:", best_match['distance'])
-                    print("Not on road. New Point Calculating...")
-                    new_x, new_y, hdg = self.move_point_to_road(P, best_match)
-                    return True, new_x, new_y, best_match['distance'], hdg
-
+            if best_match['distance'] < lane_width:
+                return True, final_x, final_y, best_match['distance'], final_hdg
             else:
-                return False, None, None, None, None 
-         
+                return False, None, None, best_match['distance'], None
 
-def check_and_get_direction(CP, spawn_P, xodrPath):
+
+def check_and_get_direction(spawn_P, crash_P, xodrPath, snap):
     with open(xodrPath, 'r') as file:
         xodr_content = file.read()
 
     checker = OpenDRIVEChecker(xodr_content)
 
-    is_on, P_x, P_y, distance, hdg = checker.check_point_on_road(CP, spawn_P)
+    is_on, P_x, P_y, distance, hdg = checker.check_point_on_road(spawn_P, crash_P, snap)
 
     return is_on, P_x, P_y, distance, hdg  
 

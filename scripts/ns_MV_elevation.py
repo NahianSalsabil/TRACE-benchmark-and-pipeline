@@ -5,7 +5,7 @@ import shutil
 from settings import MAPS_OSM_DIR
 from settings import SUMMARY_DIR
 from settings import ELEVANTION_PASSED_DIR
-
+SEARCH_THRESHOLD = 100.0
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     """
@@ -88,8 +88,6 @@ def is_safe_elevation(osm_file_path, crash_lat, crash_lon, safety_threshold_mete
 
 def check_elevation():
     
-    SEARCH_THRESHOLD = 100.0 
-
     os.makedirs(ELEVANTION_PASSED_DIR, exist_ok=True)
 
     crash_lat = 0.0

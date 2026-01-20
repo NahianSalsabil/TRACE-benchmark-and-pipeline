@@ -22,6 +22,24 @@ class RoadExtractionJunction(RoadExtraction):
                 return road['id']
         return None
     
+    def _get_lane_boundaries(self, road):
+        right_lane_width = 0.0
+        left_lane_width = 0.0
+        left_lane = False
+        lane_section = road['lane_section'][0] 
+        
+        for lane in lane_section.get('right_lanes', []):
+            if(lane['type'] == "driving"):
+                right_lane_width += lane['width_a']
+
+        for lane in lane_section.get('left_lanes', []):
+            left_lane = True
+            if(lane['type'] == "driving"):
+
+                left_lane_width += lane['width_a']
+        
+        return right_lane_width, left_lane_width, left_lane
+
     def _get_terminal_point(self, road, junction_id):
         if not road or not road.get('geometry'):
             return None, None
@@ -92,25 +110,35 @@ class RoadExtractionJunction(RoadExtraction):
                 
                 if road and road['junction'] == -1: 
                     X, Y, hdg = self._get_terminal_point(road, junction_id)
+                    
                     if X is not None:
                         terminal_points.append((X, Y))
                         processed_road_ids.add(incoming_id)
 
-                        offset = self._get_lane_boundaries(road)
+                        # offset, left_lane = self._get_lane_boundaries(road)
+                        right_lane_width, left_lane_width, left_lane = self._get_lane_boundaries(road)
                         
-                        H_perp1 = hdg + math.pi / 2
-                        H_perp2 = hdg - math.pi / 2
-                        
-                        # Corner Candidate 1 (Center + Offset 1)
-                        C1_X = X + offset * math.cos(H_perp1)
-                        C1_Y = Y + offset * math.sin(H_perp1)
-                        
-                        # Corner Candidate 2 (Center + Offset 2)
-                        C2_X = X + offset * math.cos(H_perp2)
-                        C2_Y = Y + offset * math.sin(H_perp2)
+                        if not left_lane:
+                            H_perp2 = hdg - math.pi / 2
+                            # Corner Candidate 1 (Center + Offset 1)
+                            C2_X = X + right_lane_width * math.cos(H_perp2)
+                            C2_Y = Y + right_lane_width * math.sin(H_perp2)
+                            junction_corner_candidates.append((C2_X, C2_Y))
 
-                        junction_corner_candidates.append((C1_X, C1_Y))
-                        junction_corner_candidates.append((C2_X, C2_Y))
+                        else:
+                            H_perp1 = hdg + math.pi / 2
+                            H_perp2 = hdg - math.pi / 2
+                            
+                            # Corner Candidate 1 (Center + Offset 1)
+                            C1_X = X + left_lane_width * math.cos(H_perp1)
+                            C1_Y = Y + left_lane_width * math.sin(H_perp1)
+                            
+                            # Corner Candidate 2 (Center + Offset 2)
+                            C2_X = X + right_lane_width * math.cos(H_perp2)
+                            C2_Y = Y + right_lane_width * math.sin(H_perp2)
+
+                            junction_corner_candidates.append((C1_X, C1_Y))
+                            junction_corner_candidates.append((C2_X, C2_Y))
 
         if not terminal_points:
             return None # Cannot calculate extents
@@ -145,7 +173,7 @@ class RoadExtractionJunction(RoadExtraction):
         
         return quadrant_data
 
-    def _get_geometry_corners(self, geom, lane_width, left, right):
+    def _get_geometry_corners(self, geom, right_lane_width, left_lane_width, left, right):
         
         P_start_corner = None
         hdg_start = None
@@ -176,14 +204,14 @@ class RoadExtractionJunction(RoadExtraction):
         Nx_start = -math.sin(hdg_start)
         Ny_start = math.cos(hdg_start)
         
-        C1_od = (round(P_start_corner[0] + lane_width * Nx_start, 2), round(P_start_corner[1] + lane_width * Ny_start, 2)) # Start, Left
-        C2_od = (round(P_start_corner[0] - lane_width * Nx_start, 2), round(P_start_corner[1] - lane_width * Ny_start, 2)) # Start, Right
+        C1_od = (round(P_start_corner[0] + left_lane_width * Nx_start, 2), round(P_start_corner[1] + left_lane_width * Ny_start, 2)) # Start, Left
+        C2_od = (round(P_start_corner[0] - right_lane_width * Nx_start, 2), round(P_start_corner[1] - right_lane_width * Ny_start, 2)) # Start, Right
         
         Nx_end = -math.sin(hdg_end)
         Ny_end = math.cos(hdg_end)
 
-        C3_od = (round(P_end_corner[0] - lane_width * Nx_end, 2), round(P_end_corner[1] - lane_width * Ny_end, 2)) # End, Right
-        C4_od = (round(P_end_corner[0] + lane_width * Nx_end, 2), round(P_end_corner[1] + lane_width * Ny_end, 2)) # End, Left
+        C3_od = (round(P_end_corner[0] - right_lane_width * Nx_end, 2), round(P_end_corner[1] - right_lane_width * Ny_end, 2)) # End, Right
+        C4_od = (round(P_end_corner[0] + left_lane_width * Nx_end, 2), round(P_end_corner[1] + left_lane_width * Ny_end, 2)) # End, Left
 
         if right:
             right_segment = [
@@ -214,8 +242,9 @@ class RoadExtractionJunction(RoadExtraction):
         if road is None:
             return []
 
+        right_lane_width, left_lane_width, _ = self._get_lane_boundaries(road)
+
         geometries = road['geometry']
-        lane_width = self._get_lane_boundaries(road)
         
         current_geom_index = -1
         for i, geom in enumerate(geometries):
@@ -260,7 +289,7 @@ class RoadExtractionJunction(RoadExtraction):
         all_segments_corners = []
 
         for geom in all_geometries:
-            segment = self._get_geometry_corners(geom, lane_width, left, right)
+            segment = self._get_geometry_corners(geom, right_lane_width, left_lane_width, left, right)
             if segment:
                 all_segments_corners.append((segment))
                 
@@ -324,7 +353,7 @@ class RoadExtractionJunction(RoadExtraction):
         for road in self.road_data:
             successor = road['successor']
             if road['junction'] == junction_id and successor[0] == 'road' and successor[1] == external_road_id:
-                    road_half_width = self._get_lane_boundaries(road)
+                    right_lane_width, left_lane_width, _ = self._get_lane_boundaries(road)
 
                     for geom in road['geometry']:
 
@@ -356,7 +385,7 @@ class RoadExtractionJunction(RoadExtraction):
                         if 0 <= t_norm <= 1:
                             left = False
                             right = True
-                            corners = self._get_geometry_corners(geom, road_half_width, left, right)
+                            corners = self._get_geometry_corners(geom, right_lane_width, left_lane_width, left, right)
                             
                             best_match['type'] = roadtype
                             best_match['road_id'] = road['id']
@@ -440,7 +469,7 @@ class RoadExtractionJunction(RoadExtraction):
             junction_id = road['junction']
             min_distance = float('inf')
             
-            road_half_width = self._get_lane_boundaries(road) 
+            right_lane_width, left_lane_width, _ = self._get_lane_boundaries(road) 
             
             for geom in road['geometry']:   
 
@@ -476,7 +505,7 @@ class RoadExtractionJunction(RoadExtraction):
                 if distance < min_distance:
                     min_distance = distance
 
-                if distance <= road_half_width and distance < best_match['distance']:
+                if distance <= right_lane_width and distance < best_match['distance']:
 
                     s_current_geom = t_norm * length
                     s_total = geom['s'] + s_current_geom 
@@ -489,9 +518,9 @@ class RoadExtractionJunction(RoadExtraction):
                     signed_distance = distance * math.copysign(1, -(Tx * Vy - Ty * Vx))
                     
                     if 0 <= t_norm <= 1:
-                        left = True
+                        left = False
                         right = True
-                        corners = self._get_geometry_corners(geom, road_half_width, left, right)
+                        corners = self._get_geometry_corners(geom, right_lane_width, left_lane_width, left, right)
                         
                         best_match['distance'] = distance
                         best_match['type'] = roadtype
@@ -549,14 +578,13 @@ class RoadExtractionJunction(RoadExtraction):
 
         P_x, P_y = P # Unpack query point
         all_junctions = []
+        candidate_junctions = []
 
         for road in self.road_data:
             road_id = road['id']
             junction_id = road['junction']
-            
-            # Get the half-width magnitude of the road (from your existing _get_road_boundaries)
-            # This width is used to define the lateral extent of the bounding box.
-            road_half_width = self._get_lane_boundaries(road) 
+
+            right_lane_width, left_lane_width, _ = self._get_lane_boundaries(road) 
             
             for geom in road['geometry']:   
 
@@ -580,24 +608,17 @@ class RoadExtractionJunction(RoadExtraction):
                 elif geom['type'] == 'paramPoly3':
                     P_ref, t_norm = self._calculate_closest_point_on_paramPoly3(P, geom)
                     
-                    # We must recalculate the true heading and tangent at the closest point P_ref
-                    # t_norm here is the parameter 'u'
                     (_, _), (Tx_at_ref, Ty_at_ref) = self._get_paramPoly3_point_and_tangent(geom, t_norm)
                     
-                    # Recalculate the heading at P_ref for the final result
                     hdg = math.atan2(Ty_at_ref, Tx_at_ref)
-                    length = geom['length'] # Used for s calculation
+                    length = geom['length']
 
                     roadtype = 'parampoly'
 
                 distance = math.sqrt((P_x - P_ref[0])**2 + (P_y - P_ref[1])**2)
-                # if junction_id > 0:
-                    # print("road id: ", road_id)
-                    # print("distance: ", distance)
 
-                if distance <= road_half_width and junction_id > 0:
-                    # print("road_id: ", road_id)
-
+                if distance <= right_lane_width and 0 <= t_norm <= 1 and junction_id > 0:
+                    
                     s_current_geom = t_norm * length
                     s_total = geom['s'] + s_current_geom 
                     
@@ -609,25 +630,34 @@ class RoadExtractionJunction(RoadExtraction):
                     signed_distance = distance * math.copysign(1, -(Tx * Vy - Ty * Vx))
                     # print("signed distance: ", signed_distance)
                     
-                    # Update best match only if the projection is longitudinally valid
-                    if 0 <= t_norm <= 1:
-                        left = False
-                        right = True
-                        corners = self._get_geometry_corners(geom, road_half_width, left, right)
-                        
-                        best_match['distance'] = distance
-                        best_match['type'] = roadtype
-                        best_match['road_id'] = road_id
-                        best_match['junction_id'] = junction_id
-                        best_match['s'] = geom['s']
-                        best_match['t'] = signed_distance
-                        best_match['hdg'] = geom['hdg']
-                        best_match['hdg_at_CP'] = hdg
-                        best_match['segment_corners'] = corners #in carla coordinate
+                    left = False
+                    right = True
+                    corners = self._get_geometry_corners(geom, right_lane_width, left_lane_width, left, right)
+                    
+                    best_match['distance'] = distance
+                    best_match['type'] = roadtype
+                    best_match['road_id'] = road_id
+                    best_match['junction_id'] = junction_id
+                    best_match['s'] = geom['s']
+                    best_match['t'] = signed_distance
+                    best_match['hdg'] = geom['hdg']
+                    best_match['hdg_at_CP'] = hdg
+                    best_match['segment_corners'] = corners #in carla coordinate
 
-                    if best_match['distance'] <= road_half_width and best_match['t'] > 0:
-                        # print(road_id)
+                    if best_match['distance'] <= right_lane_width and best_match['t'] > 0:
+                        
                         all_junctions.append(best_match.copy())
+                    elif best_match['distance'] <= 2 and best_match['t'] < 0:
+                        candidate_junctions.append(best_match.copy())
+        
+        if len(all_junctions) < 2 and candidate_junctions:
+            print("in")
+            candidate_junctions.sort(key=lambda x: x['distance'])
+        
+            for candidate in candidate_junctions:
+                if len(all_junctions) >= 2:
+                    break
+                all_junctions.append(candidate)
 
         return all_junctions
      
@@ -675,6 +705,7 @@ class RoadExtractionJunction(RoadExtraction):
                             # print(first_segment)
 
                     if first_segment:
+                        # print("first seg: ", first_segment)
                         connecting_road_first_segment = {
                             'junction_road_id': junc_road_id,
                             'predecessor_road_id': predecessor_id,
@@ -743,18 +774,18 @@ class RoadExtractionJunction(RoadExtraction):
         junction, best_match = self.find_junction(P)
 
         if junction:
-            """ This function calculates the center of the junction 
-            and the 4 middles points of each segment of that junction """
-            quadrant_data = self._calculate_junction_quadrants(best_match['junction_id'])
-            # print("quadrant data: ", quadrant_data)
+            # """ This function calculates the center of the junction 
+            # and the 4 middles points of each segment of that junction """
+            # quadrant_data = self._calculate_junction_quadrants(best_match['junction_id'])
+            # # print("quadrant data: ", quadrant_data)
 
-            """ This function will move the crash point to the closest segment's 
-            middle point to simplify things. """
-            P_new = self.move_CP_to_closest_junction(P, quadrant_data)
-            # print("P new: ", P_new)
+            # """ This function will move the crash point to the closest segment's 
+            # middle point to simplify things. """
+            # P_new = self.move_CP_to_closest_junction(P, quadrant_data)
+            # # print("P new: ", P_new)
 
             """ This function finds all the junction roads the crash point falls in. """
-            all_junctions = self.find_valid_junctions_from_CP(P_new)
+            all_junctions = self.find_valid_junctions_from_CP(P)
             # print("printing all junctions...", len(all_junctions))
             # print(all_junctions)
 

@@ -3,31 +3,41 @@ import math
 import random
 import sys
 import time
+import queue
 import json
 from ns_check_points import check_and_get_direction
 import ns_GT_junction
 import ns_validation_manager
-sys.path.append("/home/carla/PythonAPI/carla")
+
 from agents.navigation.basic_agent import BasicAgent
 from agents.navigation.local_planner import RoadOption
 
 
 class BlindAgent(BasicAgent):
     """
-    A subclass of BasicAgent that ignores all obstacles and traffic lights.
-    It purely follows the waypoint path using the LocalPlanner.
+    A subclass of BasicAgent that:
+    1. Ignores obstacles and traffic lights.
+    2. Forces the vehicle to exact target speed (ignoring acceleration/turning physics).
     """
     def run_step(self):
-        # 1. Update the local planner with the vehicle's current location
-        self._local_planner.run_step()
 
-        # 2. Ask the planner for the next control (Steering/Throttle)
-        # Note: We completely SKIP the _vehicle_obstacle_detected() check here.
         control = self._local_planner.run_step(debug=False)
         
-        # 3. Force constant speed (optional but recommended for crashing)
-        # Sometimes the planner slows down for turns; this helps keep it aggressive.
-        # However, the standard run_step logic above usually suffices if target_speed is set.
+        v_ms = self._target_speed / 3.6
+
+        transform = self._vehicle.get_transform()
+        fwd = transform.get_forward_vector()
+        
+        current_vel = self._vehicle.get_velocity()
+
+        self._vehicle.set_target_velocity(carla.Vector3D(
+            x=fwd.x * v_ms,
+            y=fwd.y * v_ms,
+            z=current_vel.z 
+        ))
+        control.throttle = 0.0
+        control.brake = 0.0
+        control.hand_brake = False
         
         return control
 
@@ -186,7 +196,7 @@ def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, trajectory_path, 
     ###### Spawning Vehicle 1 ######
     print("vehicle 1")
     veh1_spawn = (veh1_x, veh1_y)
-    _, veh1_x, veh1_y, _, hdg_1 = check_and_get_direction(False, veh1_spawn, xodrPath)
+    _, veh1_x, veh1_y, _, hdg_1 = check_and_get_direction(veh1_spawn, crash_P, xodrPath, snap=True)
     veh1_angle = math.degrees(math.atan2(-math.sin(hdg_1), math.cos(hdg_1)))
     print("spawn Points: ", veh1_x, veh1_y, veh1_angle)
     veh1_spawn_z = 0.5 # Slightly above ground to avoid collision with ground
@@ -200,7 +210,7 @@ def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, trajectory_path, 
     #### Spawning Vehicle 2 #########
     print("vehicle 2")
     veh2_spawn = (veh2_x, veh2_y)
-    _, veh2_x, veh2_y, _, hdg_2 = check_and_get_direction(False, veh2_spawn, xodrPath)
+    _, veh2_x, veh2_y, _, hdg_2 = check_and_get_direction(veh2_spawn, crash_P, xodrPath, snap=True)
     veh2_angle = math.degrees(math.atan2(-math.sin(hdg_2), math.cos(hdg_2)))
     print("spawn Points: ", veh2_x, veh2_y, veh2_angle)
     veh2_spawn_z = 0.5 # Slightly above ground to avoid collision with ground
@@ -217,98 +227,81 @@ def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, trajectory_path, 
     veh1_junction_id, veh1_junction_road_id = find_junction_options(veh1_road_id, routes)
     veh2_junction_id, veh2_junction_road_id = find_junction_options(veh2_road_id, routes)
 
+    v1_P = (veh1_x, veh1_y)
+    v2_P = (veh2_x, veh2_y)
+    veh1_speed, veh2_speed = ns_GT_junction.calculate_synchronized_speeds(xodrPath, crash_P, 
+                            v1_P, veh1_junction_id, veh1_junction_road_id, veh1_road_id, veh1_speed, v2_P,
+                            veh2_junction_id, veh2_junction_road_id, veh2_road_id, veh2_speed)
+
     # --- Spawn the Vehicles ---
     try:
-        SpawnActor = carla.command.SpawnActor
-        SetPhysics = carla.command.SetSimulatePhysics
-        FutureActor = carla.command.FutureActor
-
-        batch = []
-        
-        batch.append(SpawnActor(vehicle_bp1, veh1_spawn_transform)
-                    .then(SetPhysics(FutureActor, True)))
-
-        batch.append(SpawnActor(vehicle_bp2, veh2_spawn_transform)
-                    .then(SetPhysics(FutureActor, True)))
-
-        responses = client.apply_batch_sync(batch, True)
-
-        vehicle1 = None
-        vehicle2 = None
-        
-        if responses[0].error:
-            print(f"Failed to spawn 1st vehicle: {responses[0].error}")
-        else:
-            vehicle1 = world.get_actor(responses[0].actor_id)
-
-        if responses[1].error:
-            print(f"Failed to spawn 2nd vehicle: {responses[1].error}")
-        else:
-            vehicle2 = world.get_actor(responses[1].actor_id)
-
-        # vehicle1 = world.try_spawn_actor(vehicle_bp1, veh1_spawn_transform)
-        # vehicle2 = world.try_spawn_actor(vehicle_bp2, veh2_spawn_transform)
+        vehicle1 = world.try_spawn_actor(vehicle_bp1, veh1_spawn_transform)
+        vehicle2 = world.try_spawn_actor(vehicle_bp2, veh2_spawn_transform)
         
 
-        # if not vehicle1:
-        #     print("Failed to spawn 1st vehicle. Check coordinates/occupancy.")
+        if not vehicle1:
+            print("Failed to spawn 1st vehicle. Check coordinates/occupancy.")
 
-        # if not vehicle2:
-        #     print("Failed to spawn 2nd vehicle. Check coordinates/occupancy.")
+        if not vehicle2:
+            print("Failed to spawn 2nd vehicle. Check coordinates/occupancy.")
         
         if vehicle1 and vehicle2:
             print(f"Successfully spawned two vehicles.")
 
             vehicles.extend([vehicle1, vehicle2])
 
-            print("veh 1 loc: ", location1)
-            print("veh 2 loc: ", location2)
-            print("crash loc: ", crash_location)
-
-            for v in [vehicle1, vehicle2]:
-                v.apply_control(carla.VehicleControl(hand_brake=True))
+            v1_ms = veh1_speed / 3.6
+            v2_ms = veh2_speed / 3.6
             
-            for _ in range(20): 
-                world.tick()
+            # Vehicle 1 Start Velocity
+            yaw1_rad = math.radians(veh1_spawn_transform.rotation.yaw)
+            vehicle1.set_target_velocity(carla.Vector3D(
+                x=v1_ms * math.cos(yaw1_rad),
+                y=v1_ms * math.sin(yaw1_rad),
+                z=0
+            ))
 
-            for v in [vehicle1, vehicle2]:
-                v.apply_control(carla.VehicleControl(hand_brake=False))
+            # Vehicle 2 Start Velocity
+            yaw2_rad = math.radians(veh2_spawn_transform.rotation.yaw)
+            vehicle2.set_target_velocity(carla.Vector3D(
+                x=v2_ms * math.cos(yaw2_rad),
+                y=v2_ms * math.sin(yaw2_rad),
+                z=0
+            ))
 
             validator = ns_validation_manager.ValidationManager(
                 crash_location=(crash_x, crash_y)   
             )
 
-            crash_detected = False
-            veh1_route_points = None 
+            crash_event_triggered = False
+            veh1_route_points = None
             veh2_route_points = None
             veh1_route = None
             veh2_route = None
 
             def on_collision(event):
-                nonlocal crash_detected 
-                if crash_detected:
+                nonlocal crash_event_triggered 
+                if crash_event_triggered:
                     return
-                print("\n!!! CRASH SENSOR TRIGGERED !!!")
-                crash_detected = True
-                validator.register_crash(vehicle1, vehicle2, veh1_route_points, veh2_route_points, 
-                                            veh1_direction, veh2_direction,
-                                            veh1_impact_point, veh2_impact_point)
+                other_actor = event.other_actor
+            
+                if other_actor.id == vehicle2.id:
+                    print(f"\n!!! CRASH Between Two Vehicles DETECTED!!!")
+                    crash_event_triggered = True
+
+                    current_sim_time = world.get_snapshot().timestamp.elapsed_seconds
+                    validator.update_arrival_times(current_sim_time, vehicle1.get_location(), vehicle2.get_location())
+                    validator.register_crash(vehicle1, vehicle2, veh1_route_points, veh2_route_points, 
+                                             veh1_direction, veh2_direction, 
+                                             veh1_impact_point, veh2_impact_point)
+                else:
+                    pass
 
             collision_bp = blueprint_library.find('sensor.other.collision')
             col_sensor1 = world.spawn_actor(collision_bp, carla.Transform(), attach_to=vehicle1)
             col_sensor1.listen(lambda event: on_collision(event))
             vehicles.append(col_sensor1)
-            print("Collision sensors attached and listening.")
 
-            v1_P = (veh1_x, veh1_y)
-            v2_P = (veh2_x, veh2_y)
-            veh1_speed, veh2_speed = ns_GT_junction.calculate_synchronized_speeds(xodrPath, crash_P, 
-                                                                            v1_P, veh1_junction_id, 
-                                                                            veh1_junction_road_id, 
-                                                                            veh1_road_id, veh1_speed, v2_P,
-                                                                            veh2_junction_id,
-                                                                            veh2_junction_road_id,
-                                                                            veh2_road_id, veh2_speed)
             agent1 = BlindAgent(vehicle1, target_speed = veh1_speed)
 
             veh1_route_points = ns_GT_junction.route_generator(xodrPath, trajectory_path, crash_P, veh1_x, veh1_y, 
@@ -317,7 +310,6 @@ def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, trajectory_path, 
             if veh1_route_points:
                 veh1_route = convert_points_to_global_plan(veh1_route_points)
                 agent1.set_global_plan(veh1_route)
-            print("veh1 route found")
             
             agent2 = BlindAgent(vehicle2, target_speed = veh2_speed)
 
@@ -327,7 +319,6 @@ def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, trajectory_path, 
             if veh2_route_points:
                 veh2_route = convert_points_to_global_plan(veh2_route_points)
                 agent2.set_global_plan(veh2_route)
-            print("veh2 route found")
 
             """ Save Simulation info in a json """
             simulation_data = {
@@ -347,38 +338,33 @@ def spawn_vehicle(xodrPath, pointsPath, routePath, reportPath, trajectory_path, 
             }
             with open(simulation_path, "w") as json_file:
                 json.dump(simulation_data, json_file, indent=4)
-            print(f"Vehicle data saved to {simulation_path}")
 
             start_time = world.get_snapshot().timestamp.elapsed_seconds
 
             for i in range(MAX_TICK_COUNT):
                 world.tick()
-
-                current_sim_time = world.get_snapshot().timestamp.elapsed_seconds
-            
-                validator.update_arrival_times(
-                    current_sim_time, 
-                    vehicle1.get_location(), 
-                    vehicle2.get_location()
-                )
                 
-                if crash_detected:
+                if crash_event_triggered:
+                    current_sim_time = world.get_snapshot().timestamp.elapsed_seconds
+                    validator.update_arrival_times(
+                        current_sim_time, 
+                        vehicle1.get_location(), 
+                        vehicle2.get_location()
+                    )
+
                     control_stop = carla.VehicleControl(throttle=0.0, steer=0.0, brake=1.0, hand_brake=True)
                     vehicle1.apply_control(control_stop)
                     vehicle2.apply_control(control_stop)
                     
+
                 else:
                     if agent1.done() and agent2.done():
-                        print(f"Tick {i}: Both agents reached their destinations.")
+                        print("Both agents reached destination.")
                         break
-                    
                     if not agent1.done():
-                        control1 = agent1.run_step()
-                        vehicle1.apply_control(control1)
-                    
+                        vehicle1.apply_control(agent1.run_step())
                     if not agent2.done():
-                        control2 = agent2.run_step()
-                        vehicle2.apply_control(control2)
+                        vehicle2.apply_control(agent2.run_step())
 
             
     except Exception as e:

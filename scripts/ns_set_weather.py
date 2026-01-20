@@ -1,33 +1,29 @@
 import carla
 import datetime
+import argparse
+import os
+import sys
 import pytz
 from pysolar import solar
 import time
 import pandas as pd
 import pvlib
+from settings import SUMMARY_DIR
 
 def set_sun_position(year, month, day, hour, minute, second, latitude, longitude, 
     timezone_name = 'UTC',
     carla_host = 'localhost', 
     carla_port= 2000
 ):
-   
-    print("--- Starting Sun Position Script ---")
     
     try:
-        # Get the timezone object
         local_tz = pytz.timezone(timezone_name)
         
-        # Create a naive datetime object
         naive_dt = datetime.datetime(year, month, day, hour, minute, second)
         
-        # Make the datetime object timezone-aware
         t_aware = local_tz.localize(naive_dt)
         
-        # Pysolar expects UTC, so convert the timezone-aware time to UTC
         t_utc = t_aware.astimezone(pytz.utc)
-        
-        print(f"Time to use for calculation (UTC): {t_utc}")
         
         
     except pytz.UnknownTimeZoneError:
@@ -37,30 +33,23 @@ def set_sun_position(year, month, day, hour, minute, second, latitude, longitude
         print(f"Error creating datetime object: {e}")
         return
 
-    # --- 2. Calculate Solar Position (Altitude and Azimuth) ---
     try:
-        # Altitude: The angle above the horizon. CARLA uses this directly.
         altitude_deg = solar.get_altitude(latitude, longitude, t_utc)
         
         azimuth_deg = solar.get_azimuth(latitude, longitude, t_utc)
         
-        print(f"Calculated Sun Altitude: {altitude_deg:.2f}°")
-        print(f"Calculated Sun Azimuth (from North): {azimuth_deg:.2f}°")
         
     except Exception as e:
         print(f"Error during solar calculation: {e}")
         return
 
-    # --- 3. Connect to CARLA and Apply Settings ---
     try:
         client = carla.Client(carla_host, carla_port)
         client.set_timeout(10.0)
         world = client.get_world()
         
-        # Get current weather to keep other settings consistent (like cloudiness)
         current_weather = world.get_weather()
 
-        # Create new weather parameters
         custom_weather = carla.WeatherParameters(
             cloudiness=current_weather.cloudiness,
             precipitation=current_weather.precipitation,
@@ -68,17 +57,13 @@ def set_sun_position(year, month, day, hour, minute, second, latitude, longitude
             fog_density=current_weather.fog_density,
             wetness=current_weather.wetness,
             precipitation_deposits=current_weather.precipitation_deposits,
-            sun_altitude_angle=altitude_deg,  # Use the calculated Altitude
-            sun_azimuth_angle=azimuth_deg    # Use the calculated Azimuth
+            sun_altitude_angle=altitude_deg,  
+            sun_azimuth_angle=azimuth_deg    
         )
 
-        # Apply the new weather settings
         world.set_weather(custom_weather)
         
-
         print(f"\nSuccessfully set CARLA sun position:")
-        print(f"  CARLA Altitude: {altitude_deg:.2f}°")
-        print(f"  CARLA Azimuth: {azimuth_deg:.2f}°")
         
     except carla.World.TimeoutException:
         print(f"\nError: Could not connect to CARLA at {carla_host}:{carla_port}. Is the simulator running?")
@@ -86,8 +71,20 @@ def set_sun_position(year, month, day, hour, minute, second, latitude, longitude
         print(f"\nAn error occurred while setting CARLA weather: {e}")
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description="Spawn vehicles for a specific crash scenario.")
     
-    with open('crashes/summary/summary_510149.txt') as file:
+    parser.add_argument("crash_id", type=int, nargs='?', help="The ID of the crash scenario to simulate.")
+
+    args = parser.parse_args()
+
+    if args.crash_id is None:
+        print("Error: Crash ID is missing. Please provide a crash ID (e.g., python script.py 510163).")
+        sys.exit(1)
+
+    crash_id = args.crash_id
+    
+    with open(os.path.join(SUMMARY_DIR, f"summary_{crash_id}.txt")) as file:
         lines = file.readlines()
     
     for line in lines:
@@ -114,6 +111,4 @@ if __name__ == '__main__':
         target_tz
     )
     
-    # Wait for a moment to confirm the settings were applied
     time.sleep(2)
-    print("--- Script Finished ---")

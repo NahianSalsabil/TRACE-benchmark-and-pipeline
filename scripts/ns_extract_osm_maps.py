@@ -4,6 +4,11 @@ import os
 import math
 import argparse
 import time
+from settings import SUMMARY_DIR
+from settings import MAPS_OSM_DIR
+from settings import MAP_BBOX_DIR
+
+RADIUS_METER = 300  # Radius in meters
 
 # Earth's radius in kilometers
 # We use this to convert distance (km) into degrees of latitude/longitude.
@@ -54,7 +59,7 @@ def extract_osm_from_coords(north, south, west, east):
     """
     try:
         # Define the Overpass API endpoint.
-        overpass_url = "https://overpass-api.de/api/interpreter"
+        overpass_url = "https://overpass.kumi.systems/api/interpreter"
 
         # The query to send to the Overpass API. It specifies the bounding box
         # and asks for all nodes, ways, and relations within that box.
@@ -93,53 +98,62 @@ def extract_osm_from_coords(north, south, west, east):
         print(f"An unexpected error occurred: {e}")
 
 
+def main():
+
+    if not os.path.isdir(SUMMARY_DIR):
+        print(f"Error: Directory '{SUMMARY_DIR}' not found.")
+        sys.exit(1)
+    
+    os.makedirs(MAPS_OSM_DIR, exist_ok=True)
+    os.makedirs(MAP_BBOX_DIR, exist_ok=True)
+
+    files_downloaded = 0
+
+    for filename in os.listdir(SUMMARY_DIR):
+        try:
+            print(f"Downloading Map for {filename}")
+
+            crash_number = filename.split("_")[1].split(".")[0]
+
+            with open(os.path.join(SUMMARY_DIR, filename)) as file:
+                lines = file.readlines()
+
+                for line in lines:
+                    if "Latitude" in line:
+                        center_lat = float(line.split(":")[1].strip())
+                    if "Longitude" in line:
+                        center_lon = float(line.split(":")[1].strip())
+
+            
+            # Calculate the Bounding Box
+            north, south, west, east = calculate_bbox(center_lat, center_lon, RADIUS_METER)
+            with open(os.path.join(MAP_BBOX_DIR, f"bbox_{crash_number}.txt"), "w") as bbox_file:
+                bbox_file.write(f"max lat: {north}\n")
+                bbox_file.write(f"max long: {east}\n")
+                bbox_file.write(f"min lat: {south}\n")
+                bbox_file.write(f"min long: {west}\n")
+            
+            # Download the map
+            map_content = extract_osm_from_coords(north, south, west, east)
+
+            # Write the content to the specified output file.
+            output_file = os.path.join(MAPS_OSM_DIR, "map_" + str(crash_number) + ".osm")
+            
+            if map_content:
+                with open(output_file, "wb") as f:
+                    f.write(map_content)
+        
+                print(f"Successfully downloaded OSM data to '{output_file}'")
+
+                files_downloaded += 1
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+        time.sleep(60)
+
+    print("Maps Downloaded: ", files_downloaded)
+
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("crash_dir", type=str, help='path to all the crashes')
-    parser.add_argument("osm_dir", type=str, help='path to all the osm files')
-    parser.add_argument("bbox_dir", type=str, help='path to all the bounding boxes')
-    parser.add_argument("radius", type=int, help='distance from the center to a side of the bounding box in meters')
-    args = parser.parse_args()
-
-    RADIUS_meter = float(args.radius)  # Radius in meters
-
-    crash_dir = args.crash_dir
-    osm_dir = args.osm_dir
-    bbox_dir = args.bbox_dir
-    os.makedirs(crash_dir, exist_ok=True)
-    os.makedirs(osm_dir, exist_ok=True)
-    os.makedirs(bbox_dir, exist_ok=True)
-
-    for filename in os.listdir(crash_dir):
-        print(filename)
-        crash_number = filename.split("_")[1].split(".")[0]
-
-        with open(os.path.join(crash_dir, filename)) as file:
-            lines = file.readlines()
-
-            for line in lines:
-                if "Latitude" in line:
-                    center_lat = float(line.split(":")[1].strip())
-                if "Longitude" in line:
-                    center_lon = float(line.split(":")[1].strip())
-
-        
-        # Calculate the Bounding Box
-        north, south, west, east = calculate_bbox(center_lat, center_lon, RADIUS_meter)
-        with open(os.path.join(bbox_dir, "bbox_" + str(crash_number) + ".txt"), "w") as bbox_file:
-            bbox_file.write(f"max lat: {north}\n")
-            bbox_file.write(f"max long: {east}\n")
-            bbox_file.write(f"min lat: {south}\n")
-            bbox_file.write(f"min long: {west}\n")
-        
-        # Download the map
-        map_content = extract_osm_from_coords(north, south, west, east)
-
-        # Write the content to the specified output file.
-        output_file = os.path.join(osm_dir, "map_" + str(crash_number) + ".osm")
-        with open(output_file, "wb") as f:
-            f.write(map_content)
-    
-        print(f"Successfully downloaded OSM data to '{output_file}'")
-        time.sleep(60)
+    main()
