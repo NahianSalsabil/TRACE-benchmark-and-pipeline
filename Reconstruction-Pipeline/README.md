@@ -6,7 +6,9 @@ This document provides instructions on how to set up and run the CARLA Scenario 
 
 The project is designed to generate, run, and validate driving scenarios in the [CARLA Simulator](https://carla.org/). It uses a containerized environment to ensure all dependencies and configurations are consistent. The pipeline includes various scripts for processing map data (from OpenStreetMap), generating scenes, managing scenarios, and interacting with the CARLA simulator.
 
-## Prerequisites
+## Getting Started
+
+### Prerequisites
 
 Before you begin, ensure you have the following installed and configured on your host machine:
 
@@ -16,45 +18,69 @@ Before you begin, ensure you have the following installed and configured on your
 4.  **NVIDIA Container Toolkit:** This is necessary to provide the Docker container with access to the host's GPU. [Installation Guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
 5.  **An X11 Server:** The container forwards a GUI, so you must be running on a system with an X server.
 
-## Installation
+### Build
 
 The Docker image contains all the necessary dependencies, including Python, `osmium-tool`, and the required Python packages.
 
-To build the Docker image, run the provided shell script. This will create an image tagged as `carlatest:latest`.
-
-```bash
-# Make the script executable
-chmod +x build_docker.sh
-
-# Run the build script
-./build_docker.sh
+To build the Docker image, follow the commands below. This is will create an image tagged as `carlatest:latest`.
+```sh
+docker build -t carlatest:latest .
 ```
 
-## Run Docker
+### Usage (Docker)
 
-The `run_docker.sh` script is configured to launch the container with the necessary settings for GPU access, network configuration, and GUI forwarding.
+To the run the newly created Docker image called `carlatest:latest`, follow the commands below to launch a Docker container.
 
-**Note:** The script forwards your `GEMINI_API_KEY` environment variable into the container. Ensure it is set on your host machine before running the script.
-
-```bash
-# Make the script executable
-chmod +x run_docker.sh
-
-# Run the launch script
-./run_docker.sh
+First, you should allow X11 connections. On your host machine, enter the following in the terminal:
+```sh
+xhost +local:root
 ```
 
-This will drop you into an interactive `bash` shell inside the container, in the `/home/carla` directory.
-
-### Understanding the Run Script
-
-The `run_docker.sh` script includes several important flags:
-
+Then create and run a Docker container:
+```sh
+docker run -it \
+    --privileged \
+    --rm \
+    --gpus all \
+    --net=host \
+    -e GEMINI_API_KEY=<put-key-here> \
+    -e DISPLAY=$DISPLAY \
+    -e NVIDIA_DRIVER_CAPABILITIES=all \
+    -e VK_ICD_FILENAMES="/usr/share/vulkan/icd.d/nvidia_icd.json" \
+    -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+    -v /usr/share/vulkan/icd.d:/usr/share/vulkan/icd.d:ro \
+    carlatest:latest
+```
+This will drop you into an interactive `bash` shell inside the container, in the `/home/carla` directory. The `docker run` command contains several important flags:
 -   `--gpus all`: Provides the container with access to all available host GPUs.
 -   `--net=host`: Shares the host's network stack with the container. This is required for the CARLA server and clients to communicate.
 -   `-e DISPLAY=$DISPLAY` & `-v /tmp/.X11-unix...`: Forwards the host's display, allowing you to view GUI applications running inside the container (e.g., the CARLA spectator view).
--   `-e GEMINI_API_KEY="..."`: Passes the Gemini API key to the container.
+-   `-e GEMINI_API_KEY=<put-key-here>`: Passes the Gemini API key to the container.
 -   Other flags (`--privileged`, `-e NVIDIA_DRIVER_CAPABILITIES`, etc.) are set to ensure proper functioning of the graphics drivers within the container.
+
+
+**Important: the Carla version 0.9.15 explicitly relies on Python version 3.8.** Which is why you should use the packaged `python3.8` command to run the Python scripts. You can run the scripts as:
+```sh
+# Navigate to the directory containing the scripts
+cd /home/carla/PythonAPI/util/
+
+# Example of running a script
+python3.8 ns_check_points.py [arguments]
+```
+
+Please refer to the individual scripts and the project documentation for the specific order of execution and required arguments.
+
+## Debugging
+
+Since Carla Engine relies on GPU for graphical rendering, users may face some problem while trying to run the Docker container. For this reason, some additional tools (`nvidia-smi`, `vulkaninfo`) have been provided in the Docker image.
+
+However, the Docker container may fail to load some necessary shared objects for GPU drivers. In that case, open your host machine terminal and enter the following:
+```sh
+find /usr/lib -name "libnvidia-gpucomp.so.*"
+```
+
+This will list the shared object files. Then you should copy those to the `lib/` directory and build the Docker image. The `Dockerfile` is set up in such a way that these shared objects are available in the `LD_LIBRARY_PATH` environment variable.
+
 
 ## Run the Pipeline
 
@@ -101,4 +127,4 @@ If you like, please refer to the bash scripts to understand the execution order 
 
 ## Working with the Pipeline without Docker
 
-If you do not want to use the docker and use the scripts in your own CARLA repository, you need to put all the `.py` scripts in `your_carla_root/PythonAPI/util` and you are good to go.
+If you do not want to use the docker and want to use the scripts in your own CARLA repository, you need to put all the `.py` scripts in `your_carla_root/PythonAPI/util` and you are good to go.

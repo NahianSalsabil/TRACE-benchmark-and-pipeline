@@ -5,7 +5,6 @@ import os
 import sys
 import argparse
 from settings import SIMULATION_DIR
-sys.path.append("/home/nahian/Research/Carla/PythonAPI/carla")
 from agents.navigation.basic_agent import BasicAgent
 from agents.navigation.local_planner import RoadOption
 

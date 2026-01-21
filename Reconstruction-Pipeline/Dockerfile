@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
+# installing Python 3.8 for Carla 0.9.15
 RUN add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update \
     && apt-get install -y \
@@ -29,6 +30,7 @@ RUN add-apt-repository ppa:deadsnakes/ppa \
     python3.8-dev \
     python3.8-distutils
 
+# installing pip for Python 3.8
 RUN wget https://bootstrap.pypa.io/pip/3.8/get-pip.py \
     && python3.8 get-pip.py \
     && rm get-pip.py 
