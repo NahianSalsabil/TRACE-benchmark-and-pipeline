@@ -27,6 +27,7 @@ To build the Docker image, follow the commands below. This is will create an ima
 docker build -t carlatest:latest .
 ```
 
+
 ### Usage (Docker)
 
 To the run the newly created Docker image called `carlatest:latest`, follow the commands below to launch a Docker container.
