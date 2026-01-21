@@ -59,17 +59,6 @@ This will drop you into an interactive `bash` shell inside the container, in the
 -   Other flags (`--privileged`, `-e NVIDIA_DRIVER_CAPABILITIES`, etc.) are set to ensure proper functioning of the graphics drivers within the container.
 
 
-**Important: the Carla version 0.9.15 explicitly relies on Python version 3.8.** Which is why you should use the packaged `python3.8` command to run the Python scripts. You can run the scripts as:
-```sh
-# Navigate to the directory containing the scripts
-cd /home/carla/PythonAPI/util/
-
-# Example of running a script
-python3.8 ns_check_points.py [arguments]
-```
-
-Please refer to the individual scripts and the project documentation for the specific order of execution and required arguments.
-
 ## Debugging
 
 Since Carla Engine relies on GPU for graphical rendering, users may face some problem while trying to run the Docker container. For this reason, some additional tools (`nvidia-smi`, `vulkaninfo`) have been provided in the Docker image.
@@ -81,8 +70,9 @@ find /usr/lib -name "libnvidia-gpucomp.so.*"
 
 This will list the shared object files. Then you should copy those to the `lib/` directory and build the Docker image. The `Dockerfile` is set up in such a way that these shared objects are available in the `LD_LIBRARY_PATH` environment variable.
 
+## Quick Pipeline Demo
 
-## Run the Pipeline
+This pipeline takes crash reports as input and generate maps and scenarios and run the simulation in CARLA. Some sample reports have alrady been provided in `/home/carla/PythonAPI/util/data/reports` directory so that you can directly run the pipeline without downloading the reports.
 
 Once inside the container's shell, you can execute the various pipeline scripts. To run the pipeline, move to `/home/carla/PythonAPI/util/` within the container.
 
@@ -90,17 +80,6 @@ Once inside the container's shell, you can execute the various pipeline scripts.
 # Navigate to the directory containing the scripts
 cd /home/carla/PythonAPI/util/
 ```
-
-To run the pipeline from the crash reports, You need to download the reports first from Get Crash Details API of [NHTSA Crash Viewer](https://crashviewer.nhtsa.dot.gov/CrashAPI)
-
-The sample API is: 
-
-https://crashviewer.nhtsa.dot.gov/CrashAPI/crashes/GetCaseDetails?stateCase=510003&caseYear=2023&state=51&format=xml
-
-You need to provide the `stateCase` Number, `caseYear` and the `state` number in the designated place to view that specific crash case.
-Before working with the NHTSA Crash Viewer, I would suggest to give some time to understand how the APIs work.
-
-After downloading the reports, put all the crash reports in the `/home/carla/PythonAPI/util/data/reports` directory. When putting the reports in this directory, you must follow the naming convension "crash_<crash_number>.xml". Some sample reports have alrady been provided in this directory so that you can directly run the pipeline without downloading the reports.
 
 A bash file is already created to run the whole pipeline. Once you are in `/home/carla/PythonAPI/util/`, run
 
@@ -121,6 +100,30 @@ If you want to simulate the already created scene again, run
 # loads the previously created scene and run in carla simulator.
 ./run_scenario.sh <crash_id>
 ```
+
+
+## Usage (Pipeline)
+
+**Important: the Carla version 0.9.15 explicitly relies on Python version 3.8.** Which is why you should use the packaged `python3.8` command to run the Python scripts. 
+Once inside the container's shell, you can execute the various pipeline scripts. To run the pipeline, move to `/home/carla/PythonAPI/util/` within the container.
+
+```bash
+# Navigate to the directory containing the scripts
+cd /home/carla/PythonAPI/util/
+```
+
+To run the pipeline from the crash reports, You need to download the reports first from Get Crash Details API of [NHTSA Crash Viewer](https://crashviewer.nhtsa.dot.gov/CrashAPI)
+
+The sample API is: 
+
+https://crashviewer.nhtsa.dot.gov/CrashAPI/crashes/GetCaseDetails?stateCase=510003&caseYear=2023&state=51&format=xml
+
+You need to provide the `stateCase` Number, `caseYear` and the `state` number in the designated place to view that specific crash case.
+Before working with the NHTSA Crash Viewer, I would suggest to give some time to understand how the APIs work.
+
+After downloading the reports, put all the crash reports in the `/home/carla/PythonAPI/util/data/reports` directory. When putting the reports in this directory, you must follow the naming convension "crash_<crash_number>.xml". Some sample reports have alrady been provided in this directory so that you can take a look at those.
+
+Follow the same process from [Quick Pipeline Demo](#quick-pipeline-demo) to run the pipeline with newly downloaded crash reports.
 
 If you like, please refer to the bash scripts to understand the execution order of the scripts.
 
