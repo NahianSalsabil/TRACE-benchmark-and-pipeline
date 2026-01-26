@@ -15,7 +15,7 @@ CARLA_ROOT=$(realpath "$CURRENT_DIR/../../")
 
 SERVER_PATH="$CARLA_ROOT/CarlaUE4.sh"
 
-MAP_DIR=$(python3.8 -c "import sys, os; sys.path.append(os.getcwd()); from settings import CLIPPED_MERGED_XODR_DIR; print(CLIPPED_MERGED_XODR_DIR)")
+MAP_DIR="Benchmark/maps"
 
 MAP_PATH="${MAP_DIR}/map_${CRASH_ID}.xodr"
 
@@ -37,13 +37,13 @@ sleep 10
 
 echo ">> Loading OpenDRIVE map..."
 
-python3.8 config.py -x Benchmark/maps/
+python3.8 config.py -x "$MAP_PATH"
 
 echo ">> Moving Spectator..."
-python3.8 ns_change_spectator.py "$CRASH_ID"
+python3.8 ns_change_spectator_bm.py "$CRASH_ID"
 
 sleep 5
 
-python3.8 ns_launch_scene.py "$CRASH_ID"
+python3.8 ns_launch_scene_bm.py "$CRASH_ID"
 
 wait $SERVER_PID

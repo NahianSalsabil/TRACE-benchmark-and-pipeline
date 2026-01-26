@@ -148,12 +148,12 @@ class ValidationManager:
         if self.arrival_time_v1 is None:
             if self._get_distance(veh1_loc) < DISTANCE_THRESHOLD:
                 self.arrival_time_v1 = current_sim_time
-                print(f"[Validation] Vehicle 1 arrived at crash zone at {current_sim_time:.2f}s")
+                # print(f"[Validation] Vehicle 1 arrived at crash zone at {current_sim_time:.2f}s")
 
         if self.arrival_time_v2 is None:
             if self._get_distance(veh2_loc) < DISTANCE_THRESHOLD:
                 self.arrival_time_v2 = current_sim_time
-                print(f"[Validation] Vehicle 2 arrived at crash zone at {current_sim_time:.2f}s")
+                # print(f"[Validation] Vehicle 2 arrived at crash zone at {current_sim_time:.2f}s")
 
     def register_crash(self, vehicle1, vehicle2, veh1_route, veh2_route, veh1_direction, veh2_direction, expected_clock_v1=None, expected_clock_v2=None):
         """

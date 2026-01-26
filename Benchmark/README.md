@@ -46,6 +46,9 @@ To work with these benchmarks, you need to copy this folder into `your_carla_rou
 
 After copying, navigate to the `util` directory.
 
-If you wish to change the agent to one of your custom agents, you will need to:
+You can change the control logic of one of the vehicles with your custom agent to verify the performance of your agent.
+To do that, you will need to:
 1. Import your agent's class into `ns_SV_junction.py` and `ns_SV_nonjunction.py`.
 2. Initialize your agent's class within these files.
+3. Change the control logic of the ego vehicle with your agent's control logic.
+4. Generate the simulation scenario for the custom agent.

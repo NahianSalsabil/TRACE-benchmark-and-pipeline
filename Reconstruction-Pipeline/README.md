@@ -30,7 +30,7 @@ cd Reconstruction-Pipeline
 
 If you run `ls -F` command, then you can see the following files.
 ```sh
-build_docker.sh*  data/  Dockerfile  lib/  README.md  requirements.txt  run_docker.sh*  scripts/
+build_docker.sh  data/  Dockerfile  lib/  README.md  requirements.txt  run_docker.sh  scripts/
 ```
 
 The Docker image contains all the necessary dependencies, including Python, `osmium-tool`, and the required Python packages.

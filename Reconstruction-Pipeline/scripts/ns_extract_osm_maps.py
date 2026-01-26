@@ -75,8 +75,8 @@ def extract_osm_from_coords(north, south, west, east):
         """
 
         # Print the query to be sent for debugging purposes.
-        print("\n--- Sending Overpass API query ---")
-        print("Bounding Box: N={:.6f}, S={:.6f}, E={:.6f}, W={:.6f}".format(north, south, east, west))
+        print("\n--- Sending Query, Please Wait ---")
+        # print("Bounding Box: N={:.6f}, S={:.6f}, E={:.6f}, W={:.6f}".format(north, south, east, west))
 
         # Send the POST request to the API with the query.
         response = requests.post(overpass_url, data=overpass_query)
@@ -111,7 +111,7 @@ def main():
 
     for filename in os.listdir(SUMMARY_DIR):
         try:
-            print(f"Downloading Map for {filename}")
+            print(f"Downloading Map for {filename}...")
 
             crash_number = filename.split("_")[1].split(".")[0]
 
@@ -150,7 +150,7 @@ def main():
         except Exception as e:
             print(f"An error occurred: {e}")
 
-        time.sleep(60)
+        time.sleep(10)
 
     print("Maps Downloaded: ", files_downloaded)
 

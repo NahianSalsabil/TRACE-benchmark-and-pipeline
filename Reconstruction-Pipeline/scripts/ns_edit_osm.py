@@ -24,7 +24,7 @@ def modify_file(osm_input_path, summary_path, osm_edited_path, header_path):
     tree = ET.parse(osm_input_path)
     root = tree.getroot()
 
-    print(f"Processing map with FIXED ANCHOR: {fixed_center_latitude}, {fixed_center_longitude}")
+    # print(f"Processing map with FIXED ANCHOR: {fixed_center_latitude}, {fixed_center_longitude}")
 
     crs_4326  = CRS.from_epsg(4326) # WGS84
     uproj_string = "+proj=tmerc +lat_0={0} +lon_0={1} +x_0=0 +y_0=0 +k_0={2} +ellps=GRS80 +units=m".format(
@@ -48,6 +48,8 @@ def modify_file(osm_input_path, summary_path, osm_edited_path, header_path):
 
     with open(osm_edited_path, 'w') as f:
         tree.write(f, encoding='unicode')
+
+    print(f"Done. OSM map written to {osm_edited_path}")
 
     north = 5000
     south = -5000
