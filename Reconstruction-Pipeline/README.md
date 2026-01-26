@@ -135,7 +135,7 @@ To run the pipeline from the crash reports, You need to download the reports fir
 
 The sample API is: 
 
-https://crashviewer.nhtsa.dot.gov/CrashAPI/crashes/GetCaseDetails?stateCase=510003&caseYear=2023&state=51&format=xml
+https://crashviewer.nhtsa.dot.gov/crashviewer/CrashAPI/crashes/GetCaseDetails?stateCase=510003&caseYear=2023&state=51&format=xml
 
 You need to provide the `stateCase` Number, `caseYear` and the `state` number in the designated place to view that specific crash case.
 Before working with the NHTSA Crash Viewer, I would suggest to give some time to understand how the APIs work.
