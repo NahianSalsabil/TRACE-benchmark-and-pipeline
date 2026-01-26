@@ -17,8 +17,21 @@ Before you begin, ensure you have the following installed and configured on your
 3.  **NVIDIA Graphics Drivers:** Ensure you have the latest proprietary NVIDIA drivers for your GPU.
 4.  **NVIDIA Container Toolkit:** This is necessary to provide the Docker container with access to the host's GPU. [Installation Guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
 5.  **An X11 Server:** The container forwards a GUI, so you must be running on a system with an X server.
+6.  **GEMINI API KEY:** Gemini API Key to invoke the LLM integrated in the pipeline. 
 
 ### Build
+
+First, you need to clone the repository and navigate to the `Reconstruction-Pipeline` directory.
+
+```sh
+git clone git@github.com:NahianSalsabil/carla-benchmark.git
+cd Reconstruction-Pipeline
+```
+
+If you run `ls -F` command, then you can see the following files.
+```sh
+build_docker.sh*  data/  Dockerfile  lib/  README.md  requirements.txt  run_docker.sh*  scripts/
+```
 
 The Docker image contains all the necessary dependencies, including Python, `osmium-tool`, and the required Python packages.
 
@@ -38,6 +51,8 @@ xhost +local:root
 ```
 
 Then create and run a Docker container:
+While running this command, you need to put the Gemini API Key in the designated field.
+
 ```sh
 
 docker run -it \
@@ -54,6 +69,7 @@ docker run -it \
     -v /usr/share/vulkan/icd.d:/usr/share/vulkan/icd.d:ro \
     carlatest:latest
 ```
+
 This will drop you into an interactive `bash` shell inside the container, in the `/home/carla` directory. The `docker run` command contains several important flags:
 -   `--gpus all`: Provides the container with access to all available host GPUs.
 -   `--net=host`: Shares the host's network stack with the container. This is required for the CARLA server and clients to communicate.
