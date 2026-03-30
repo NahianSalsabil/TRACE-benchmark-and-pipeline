@@ -24,13 +24,12 @@ The repository is divided into two main components:
     *   `maps/`: The `.xodr` map files for each scenario.
     *   `simulations/`: The `.json` files defining the vehicle trajectories and events for the simulation.
 
-*   **`Prompt/`**: Contains the prompt engineering artifacts and directive files used by the reconstruction pipeline's LLM stage. It consists of four files:
-    *   `directives.txt`: Master instructions and critical traffic rules (e.g., region, right-hand traffic) used to constrain LLM outputs.
-    *   `input_data.txt`: Structured input template describing how crash report summaries and road topologies are fed into the LLM, including the fields and format expected.
-    *   `reasoning_steps.txt`: Step-by-step reasoning instructions that guide the LLM through interpreting crash summaries and determining vehicle states.
-    *   `output_format.txt`: Defines the expected JSON output schema for the LLM response, ensuring simulation-ready structured output.
+*   **`Prompt/`**: Contains the prompt template used by the reconstruction pipeline's LLM stage. It consists of two files:
+    *   `directives.txt`: The unified prompt template. It contains the static role definition, critical traffic rules, required reasoning steps, and the expected JSON output schema — everything that stays constant across all accident reconstructions. Per-accident data is injected via a designated placeholder.
+    *   `input_data.txt`: The per-accident variable. It defines the structure of the crash-specific input (crash summary and road topology in local CARLA coordinates) that gets substituted into the placeholder in `directives.txt` at runtime.
 
 The `Prompt/` directory is not required to run pre-generated benchmarks in `Benchmark/`, but it documents the prompts used to create the benchmark and provides the templates needed to reconstruct more scenarios using the TRACE pipeline.
+
 
 ## Getting Started
 
