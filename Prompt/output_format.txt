@@ -1,0 +1,13 @@
+```json
+{
+  "crash_location": { "x": float, "y": float },
+  "vehicle_1": {
+      "road_id": int,
+      "position": { "x": float, "y": float }
+  },
+  "vehicle_2": {
+      "road_id": int,
+      "position": { "x": float, "y": float }
+  }
+}
+```
