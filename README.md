@@ -24,12 +24,6 @@ The repository is divided into two main components:
     *   `maps/`: The `.xodr` map files for each scenario.
     *   `simulations/`: The `.json` files defining the vehicle trajectories and events for the simulation.
 
-*   **`Prompt/`**: Contains the prompt template used by the reconstruction pipeline's LLM stage. It consists of two files:
-    *   `directives.txt`: The unified prompt template. It contains the static role definition, critical traffic rules, required reasoning steps, and the expected JSON output schema — everything that stays constant across all accident reconstructions. Per-accident data is injected via a designated placeholder.
-    *   `input_data.txt`: The per-accident variable. It defines the structure of the crash-specific input (crash summary and road topology in local CARLA coordinates) that gets substituted into the placeholder in `directives.txt` at runtime.
-
-The `Prompt/` directory is not required to run pre-generated benchmarks in `Benchmark/`, but it documents the prompts used to create the benchmark and provides the templates needed to reconstruct more scenarios using the TRACE pipeline.
-
 
 ## Getting Started
 
@@ -70,18 +64,21 @@ The core dependencies are managed within the Dockerfile. Key components include:
 
 ## Comparison of Recent Crash Reconstruction Frameworks
 
-| Comparison Factor | **TRACE** (Ours) | CrashAgent | SAFE | AC3R | AccidentSim | SoVAR |
+| Factor | **[TRACE (Ours)](https://github.com/NahianSalsabil/carla-benchmark)** | [CrashAgent](https://arxiv.org/abs/2505.18341) | [SAFE](https://arxiv.org/abs/2502.02025) | [AC3R](https://github.com/SoftLegend/AC3R-Demo) | [AccidentSim](https://accidentsim.github.io/) | [SoVAR](https://github.com/meng2180/SoVAR) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Open Source** | **Yes** | No | Yes | Yes | No | Yes |
-| **Crash Data Sources** | NHTSA Crash Data (XML) | NHTSA CISS | NHTSA CIREN | NHTSA Police Reports | NHTSA physical parameters | NHTSA Crash reports |
-| **Input Processed** | External map data via report coordinates | Report diagrams (sketches) and text | Report diagrams (sketches) and summaries | Textual only (narrative) | Physical clues and contextual info | Textual only (narrative) |
-| **Realism of Road Topology** | **High**: Site-specific OpenStreetMap data | **Moderate**: Reconstructs layouts from sketches | **Moderate**: Custom DSL generates layouts | **Low**: Abstract geometries or generic matching | **High**: High-fidelity 3D models via RoadRunner | **Moderate**: Generalizable scenarios for various maps |
-| **Supported Topologies** | Straight, Curve, T-intersection, 4-way | Single roads, Intersections, Interchanges | Straight, Curve, Intersection, T-intersection, Merging | Straight, Curvy, 2-way, T-junction | Intersection, T-junction, Circular, Y-junction, Inclines | Straight, T-junction, Intersection |
-| **Reconstruction Methodology** | LLM state estimation + OSM pipeline | Multi-modal VLM agents | RAG + DSL + CoT reasoning | Traditional NLP + Ontology + Kinetics | Fine-tuned LLM + Physical Constraints + NeRF | LLM extraction + Z3 Constraint Solver |
-| **Collision Types** | Angle, Front-to-Front, Front-to-Rear, Sideswipe | Angle, Front-to-rear, Sideswipe, Head-on, etc. | Crossing traffic, merging, intersection turns | Frontal, Sideswipe, Straight Path, Turn into path | Head-on, Front/Rear-left/right | Rear-End, Frontal, Front-to-side |
-| **Vehicle Maneuvers** | Straight, turn left/right, stop | 42 elements (lane/speed change, U-turn, etc.) | Move Forward, Turn Left, Turn Right | Basic pre-crash actions from ontology | Pre-collision planning + post-collision prediction | Regular (U-turn, lane change) & Abnormal (retrograde) |
-| **Collision Validation** | Matches impact points, maneuvers, and location | Optimizes elements to match crash descriptions | User study alignment + self-validation | Checks simulator damaged components vs. report | Fine-tunes LLM for post-collision trajectories | Generates trajectories to meet collision area constraints |
-| **Primary Simulator(s)** | **CARLA** | **CARLA** | **MetaDrive, BeamNG** | **BeamNG.research** | **CARLA** | **LGSVL** |
+| **Open Source** | ✅ Yes (Code + Benchmark) | ❌ No (Dataset only) | ✅ Yes | ✅ Yes | ❌ No | ✅ Yes |
+| **Crash Data Source** | NHTSA XML Reports | NHTSA CISS | NHTSA CIREN | NHTSA Police Reports | NHTSA Physical Parameters | NHTSA Crash Reports |
+| **Spatial Context Source** | ✅ GPS coordinates → **automated** real-world OSM map retrieval | Hand-drawn crash sketch diagrams | Hand-drawn crash sketch diagrams | Text narrative only | Manual physical measurements | Text narrative only |
+| **Map Construction** | ✅ **Fully automated** — zero manual effort | Semi-automated from sketches | Synthetic template-based DSL | Abstract / generic geometry | ⚠️ **Manual** 3D modeling (RoadRunner, per scenario) | Generalizable template-based roads |
+| **Realism of Road Topology** | ✅ **High** (site-specific real-world geometry) | Moderate (sketch-reconstructed) | Moderate (synthetic templates) | Low (abstract geometry) | High (visual fidelity, manual) | Moderate (generic templates) |
+| **Supported Topologies** | Straight, Curve, T-intersection, 4-way intersection | Roads, Intersections, Interchanges | Straight, Curve, T, Intersection, Merging | Straight, Curvy, 2-way, T-junction | Intersection, T-junction, Circular, Y-junction | Straight, T-junction, Intersection |
+| **Reconstruction Pipeline** | ✅ LLM state estimation + automated OSM pipeline | Multi-modal VLM agents | RAG + DSL + CoT reasoning | NLP + Ontology + Kinematics | Fine-tuned LLM + ⚠️ manual 3D scene setup | LLM extraction + Z3 Constraint Solver |
+| **Collision Types** | ✅ **Any** (unconstrained) | Fixed set (~5 types) | Fixed set (3 types) | Fixed set (4 types) | Fixed set (5 types) | Fixed set (3 types) |
+| **Vehicle Maneuvers** | ✅ **Any** (LLM-inferred) | 42 predefined elements | Move Forward, Turn Left, Turn Right | Basic pre-crash actions from ontology | Pre/post-collision planned set | Regular (U-turn, lane change) & Abnormal |
+| **Collision Validation** | ✅ **3-dimensional**: impact points + maneuvers + location | Single-dimensional: geometric distance optimization | Single-dimensional: LLM self-consistency check | Single-dimensional: damaged component matching | Single-dimensional: physics trajectory error | Single-dimensional: collision area constraint |
+| **Primary Simulator** | ✅ **CARLA** (industry standard) | CARLA | MetaDrive & BeamNG | BeamNG.research | CARLA | LGSVL ⚠️ (discontinued) |
+
+---
 
 ### Table Highlights
 *   **TRACE** is fully open-source, unlike CrashAgent and AccidentSim. This makes it one of the high-topology-fidelity frameworks that the research community can freely use, inspect, and extend.
@@ -90,4 +87,4 @@ The core dependencies are managed within the Dockerfile. Key components include:
 *   **TRACE** combines **LLM-based state estimation** with a fully automated **OSM map pipeline**, a methodology not replicated by any other framework. This allows the LLM to reason about vehicle behavior within a geospatially accurate environment rather than an abstract or sketch-derived one.
 *   **TRACE** validates reconstructions by simultaneously checking **impact points, vehicle maneuvers, and crash location**, making its ground-truth alignment more comprehensive than frameworks that check only component damage (AC3R), optimize textual descriptions (CrashAgent), or constrain collision areas geometrically (SoVAR).
 *   **TRACE** targets **CARLA**, the most widely adopted open autonomous-driving simulator, ensuring broad hardware compatibility and access to a large existing ecosystem of sensors, agents, and evaluation tools — an advantage over frameworks using BeamNG, MetaDrive, or the discontinued LGSVL.
-
+*   The current benchmark took a sample of **100 crash reports** from NHTSA, which naturally skew toward the most common US crash topologies (straight roads, curves, T-intersections, and 4-way intersections). Less frequent topologies such as Y-intersections, L-shaped curves, and roundabouts were not represented in this sample. Among all compared frameworks, only AccidentSim supports Y-junction and circular topologies — however, it achieves this through manual 3D road modeling in RoadRunner, which does not scale to large datasets. Extending **TRACE** to these road types through automated OSM extraction is planned as future work.

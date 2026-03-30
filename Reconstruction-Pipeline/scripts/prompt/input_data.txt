@@ -6,7 +6,7 @@
     {
         "vehicle id": "V1",
         "junction_road_id": X1,
-        "junction_bounding_box": [
+        "junction_segment": [
            << coordinates of the four corners of the bounding box >>
         ],
         "connected_road_id": Y1,
@@ -17,7 +17,7 @@
     {
         "vehicle id": "V2",
         "junction_road_id": X2,
-        "junction_bounding_box": [
+        "junction_segment": [
             << coordinates of the four corners of the bounding box >>
         ],
         "connected_road_id": Y2,
