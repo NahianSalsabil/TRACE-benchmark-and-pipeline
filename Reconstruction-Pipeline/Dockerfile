@@ -23,7 +23,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # installing Python 3.8 for Carla 0.9.15
-RUN add-apt-repository ppa:deadsnakes/ppa \
+RUN apt-get update && apt-get install -y gnupg ca-certificates curl \
+    && curl -fsSL 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF23C5A6CF475977595C89F51BA6932366A755776' \
+    -o /etc/apt/trusted.gpg.d/deadsnakes.asc \
+    && echo "deb https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu bionic main" \
+    > /etc/apt/sources.list.d/deadsnakes.list \
     && apt-get update \
     && apt-get install -y \
     python3.8 \

@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19431924.svg)](https://doi.org/10.5281/zenodo.19431924)
+[![Paper](https://img.shields.io/badge/Paper-ESEC%2FFSE%20Companion%20'26-blue)](https://dl.acm.org/doi/abs/10.1145/3803437.3806426)
 | | | |
 |:---:|:---:|:---:|
 | ![crash_510002](samples/crash_510002.gif) | ![crash_510352](samples/crash_510352.gif) | ![crash_510003](samples/crash_510003.gif) |
